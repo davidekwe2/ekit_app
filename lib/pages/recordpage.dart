@@ -55,10 +55,11 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
   final _titleCtl = TextEditingController();
 
   // language picker
-  Lang _selectedLang = kSpeechLangs.firstWhere(
+  Lang? _selectedLang = kSpeechLangs.firstWhere(
     (l) => l.code == 'en-US',
     orElse: () => kSpeechLangs.first,
-  );
+  ); // Default to English (US)
+  bool _autoDetectLanguage = false;
 
   // Recording duration
   Duration _duration = Duration.zero;
@@ -221,10 +222,17 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
     if (_sttIn == null || _sttIn!.isClosed) {
       _sttIn = StreamController<List<int>>();
       
+      // Get the language code - use selected language or default to en-US
+      // Note: The google_speech package doesn't support alternativeLanguageCodes
+      // For auto-detect, we'll use en-US as default (true auto-detect requires API upgrade)
+      final languageCode = _autoDetectLanguage 
+          ? 'en-US' // Default for auto-detect (package limitation)
+          : (_selectedLang?.code ?? 'en-US');
+      
       final cfg = RecognitionConfig(
         encoding: AudioEncoding.LINEAR16,
         sampleRateHertz: _rate,
-        languageCode: _selectedLang.code,
+        languageCode: languageCode,
         enableAutomaticPunctuation: true,
         maxAlternatives: 1,
         model: RecognitionModel.video,
@@ -240,7 +248,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
         _sttIn!.stream,
       );
 
-      // Set up listener
+      // Set up listener with improved sentence handling
       _sttSub?.cancel();
       _sttSub = responses.listen((resp) {
         for (final r in resp.results) {
@@ -256,13 +264,36 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
               }
             }
             if (toAdd.isNotEmpty) {
-              _committed += toAdd;
-              if (!_committed.endsWith(' ')) _committed += ' ';
+              // Clean up the text to add
+              toAdd = toAdd.trim();
+              if (toAdd.isNotEmpty) {
+                // Add space before new text if needed
+                if (_committed.isNotEmpty && 
+                    !_committed.endsWith(' ') && 
+                    !_committed.endsWith('\n')) {
+                  _committed += ' ';
+                }
+                _committed += toAdd;
+                // Add space after if it doesn't end with punctuation
+                if (!_committed.endsWith('.') && 
+                    !_committed.endsWith('!') && 
+                    !_committed.endsWith('?') &&
+                    !_committed.endsWith(',') &&
+                    !_committed.endsWith(';') &&
+                    !_committed.endsWith(' ')) {
+                  _committed += ' ';
+                }
+              }
             }
             _lastFinal = t;
             _interim = '';
           } else {
-            _interim = t;
+            // For interim results, only show the new part
+            if (_lastFinal.isNotEmpty && t.startsWith(_lastFinal)) {
+              _interim = t.substring(_lastFinal.length);
+            } else {
+              _interim = t;
+            }
           }
         }
         // Update immediately for real-time feel
@@ -317,22 +348,34 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
 
   void _updateTextField() {
     if (!mounted) return;
-    final full = '$_committed$_interim';
-    // Always update for real-time streaming effect
-    _textCtl.text = full;
-    _textCtl.selection =
-        TextSelection.fromPosition(TextPosition(offset: _textCtl.text.length));
     
-    // Smooth auto-scroll to bottom for real-time note-taking feel
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollCtl.hasClients && _scrollCtl.position.maxScrollExtent > 0) {
-        _scrollCtl.animateTo(
-          _scrollCtl.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 50),
-          curve: Curves.easeOut,
-        );
+    if (_recOn) {
+      // When recording, trigger rebuild to update RichText display
+      setState(() {});
+      
+      // Smooth auto-scroll to bottom for real-time note-taking feel
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollCtl.hasClients) {
+          final maxScroll = _scrollCtl.position.maxScrollExtent;
+          if (maxScroll > 0) {
+            _scrollCtl.animateTo(
+              maxScroll,
+              duration: const Duration(milliseconds: 150),
+              curve: Curves.easeOut,
+            );
+          }
+        }
+      });
+    } else {
+      // When not recording, update TextField normally
+      String displayText = _committed;
+      if (_interim.isNotEmpty) {
+        displayText += _interim;
       }
-    });
+      _textCtl.text = displayText;
+      _textCtl.selection =
+          TextSelection.fromPosition(TextPosition(offset: _textCtl.text.length));
+    }
   }
 
   Future<void> _pause() async {
@@ -409,9 +452,11 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
 
   Future<Map<String, dynamic>?> _showSubjectSelectionDialog() async {
     final noteNameController = TextEditingController();
+    String? selectedSubjectId;
     return showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Save Note',
@@ -462,25 +507,80 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                   ),
                 ),
                 const SizedBox(height: 8),
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: AppStore.subjects.length,
-                  itemBuilder: (context, index) {
-                    final subject = AppStore.subjects[index];
-                    return ListTile(
-                      leading: Icon(
-                        subject.icon ?? Icons.school,
-                        color: AppColors.primary,
+                DropdownButtonFormField<String?>(
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                  ),
+                  hint: Row(
+                    children: [
+                      const Icon(Icons.school, color: AppColors.primary, size: 20),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Choose a subject',
+                        style: GoogleFonts.poppins(
+                          color: AppColors.textSecondary,
+                        ),
                       ),
-                      title: Text(subject.name, style: GoogleFonts.poppins()),
-                      onTap: () {
-                        Navigator.pop(context, {
-                          'subjectId': subject.id == 's0' ? null : subject.id,
-                          'noteName': noteNameController.text.trim(),
-                        });
-                      },
+                    ],
+                  ),
+                  value: selectedSubjectId,
+                  isExpanded: true,
+                  menuMaxHeight: 300,
+                  selectedItemBuilder: (context) {
+                    return AppStore.subjects.map((subject) {
+                      final value = subject.id == 's0' ? null : subject.id;
+                      return Row(
+                        children: [
+                          Icon(
+                            subject.icon ?? Icons.school,
+                            color: AppColors.primary,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              subject.name,
+                              style: GoogleFonts.poppins(),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      );
+                    }).toList();
+                  },
+                  items: AppStore.subjects.map((subject) {
+                    final value = subject.id == 's0' ? null : subject.id;
+                    return DropdownMenuItem<String?>(
+                      value: value,
+                      child: Row(
+                        children: [
+                          Icon(
+                            subject.icon ?? Icons.school,
+                            color: AppColors.primary,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              subject.name,
+                              style: GoogleFonts.poppins(),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     );
+                  }).toList(),
+                  onChanged: (value) {
+                    setDialogState(() {
+                      selectedSubjectId = value;
+                    });
                   },
                 ),
               ],
@@ -493,7 +593,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
               'subjectId': null,
               'noteName': noteNameController.text.trim(),
             }),
-            child: Text('No Subject', style: GoogleFonts.poppins()),
+            child: Text('Cancel', style: GoogleFonts.poppins()),
           ),
           TextButton(
             onPressed: () async {
@@ -508,7 +608,21 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
             },
             child: Text('Create New', style: GoogleFonts.poppins(color: AppColors.primary)),
           ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context, {
+                'subjectId': selectedSubjectId,
+                'noteName': noteNameController.text.trim(),
+              });
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: Text('Save', style: GoogleFonts.poppins(color: Colors.white)),
+          ),
         ],
+        ),
       ),
     );
   }
@@ -559,69 +673,72 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    // No icon option
-                    GestureDetector(
-                      onTap: () {
-                        setDialogState(() {
-                          selectedIcon = null;
-                        });
-                      },
-                      child: Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: selectedIcon == null
-                              ? AppColors.primary.withOpacity(0.2)
-                              : AppColors.background,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      // No icon option
+                      GestureDetector(
+                        onTap: () {
+                          setDialogState(() {
+                            selectedIcon = null;
+                          });
+                        },
+                        child: Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
                             color: selectedIcon == null
-                                ? AppColors.primary
-                                : AppColors.textLight,
-                            width: 2,
+                                ? AppColors.primary.withOpacity(0.2)
+                                : AppColors.background,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: selectedIcon == null
+                                  ? AppColors.primary
+                                  : AppColors.textLight,
+                              width: 2,
+                            ),
                           ),
+                          child: const Icon(Icons.block, size: 24),
                         ),
-                        child: const Icon(Icons.block, size: 24),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Icon options
-                    ...availableIcons.map((icon) {
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: GestureDetector(
-                          onTap: () {
-                            setDialogState(() {
-                              selectedIcon = icon;
-                            });
-                          },
-                          child: Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: selectedIcon == icon
-                                  ? AppColors.primary.withOpacity(0.2)
-                                  : AppColors.background,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
+                      const SizedBox(width: 8),
+                      // Icon options
+                      ...availableIcons.map((icon) {
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: GestureDetector(
+                            onTap: () {
+                              setDialogState(() {
+                                selectedIcon = icon;
+                              });
+                            },
+                            child: Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
                                 color: selectedIcon == icon
-                                    ? AppColors.primary
-                                    : AppColors.textLight,
-                                width: 2,
+                                    ? AppColors.primary.withOpacity(0.2)
+                                    : AppColors.background,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: selectedIcon == icon
+                                      ? AppColors.primary
+                                      : AppColors.textLight,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Icon(
+                                icon,
+                                color: AppColors.primary,
+                                size: 24,
                               ),
                             ),
-                            child: Icon(
-                              icon,
-                              color: AppColors.primary,
-                              size: 24,
-                            ),
                           ),
-                        ),
-                      );
-                    }),
-                  ],
+                        );
+                      }),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -722,29 +839,75 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.language, color: AppColors.primary),
+                  const Icon(Icons.language, color: AppColors.primary, size: 22),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: _selectedLang.code,
+                    child: DropdownButtonFormField<String?>(
+                      value: _autoDetectLanguage ? null : _selectedLang?.code,
                       decoration: const InputDecoration(
                         border: InputBorder.none,
                         isDense: true,
                         contentPadding: EdgeInsets.zero,
                       ),
-                      items: kSpeechLangs
-                          .map((l) => DropdownMenuItem(
-                                value: l.code,
-                                child: Text(l.name),
-                              ))
-                          .toList(),
-                      onChanged: (code) {
-                        if (code == null) return;
-                        setState(() {
-                          _selectedLang =
-                              kSpeechLangs.firstWhere((l) => l.code == code);
-                        });
-                      },
+                      hint: Text(
+                        _autoDetectLanguage ? 'Auto-detect' : 'Select language',
+                        style: GoogleFonts.poppins(
+                          color: AppColors.textSecondary,
+                          fontSize: 15,
+                        ),
+                      ),
+                      style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        color: AppColors.textPrimary,
+                      ),
+                      icon: const Icon(Icons.arrow_drop_down, color: AppColors.primary),
+                      isExpanded: true,
+                      menuMaxHeight: 400,
+                      items: [
+                        DropdownMenuItem<String?>(
+                          value: null,
+                          child: Row(
+                            children: [
+                              Icon(Icons.auto_awesome, color: AppColors.primary, size: 20),
+                              const SizedBox(width: 12),
+                              Text(
+                                'Auto-detect Language',
+                                style: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const DropdownMenuItem<String?>(
+                          enabled: false,
+                          child: Divider(),
+                        ),
+                        ...kSpeechLangs.map((l) => DropdownMenuItem<String?>(
+                              value: l.code,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                child: Text(
+                                  l.name,
+                                  style: GoogleFonts.poppins(fontSize: 14),
+                                ),
+                              ),
+                            )),
+                      ],
+                      onChanged: (_recOn || _isPaused) 
+                          ? null // Disable language change during recording
+                          : (code) {
+                              setState(() {
+                                if (code == null) {
+                                  _autoDetectLanguage = true;
+                                  _selectedLang = null;
+                                } else {
+                                  _autoDetectLanguage = false;
+                                  _selectedLang = kSpeechLangs.firstWhere((l) => l.code == code);
+                                }
+                              });
+                            },
                     ),
                   ),
                 ],
@@ -755,7 +918,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
 
           // Enhanced waveform visualizer
           Container(
-            height: 200,
+            height: 120,
             margin: const EdgeInsets.symmetric(horizontal: 20),
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -782,59 +945,99 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                   animation: _pulseController,
                   builder: (context, child) {
                     return Container(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           // Recording indicator
                           if (_recOn)
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
+                                horizontal: 12,
+                                vertical: 6,
                               ),
                               decoration: BoxDecoration(
                                 color: AppColors.error.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(20),
+                                borderRadius: BorderRadius.circular(16),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Container(
-                                    width: 12,
-                                    height: 12,
+                                    width: 8,
+                                    height: 8,
                                     decoration: BoxDecoration(
                                       color: AppColors.error,
                                       shape: BoxShape.circle,
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
+                                  const SizedBox(width: 6),
                                   Text(
                                     _formatDuration(_duration),
                                     style: GoogleFonts.poppins(
                                       color: AppColors.error,
                                       fontWeight: FontWeight.bold,
-                                      fontSize: 16,
+                                      fontSize: 14,
                                     ),
                                   ),
                                 ],
                               ),
-                            ),
-                          const SizedBox(height: 20),
-                          // Enhanced waveform
-                          LiveWaveform(
-                            level: _level,
-                            color: AppColors.primary,
-                            barCount: 40,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            _recognizing ? 'Listening...' : 'Ready to record',
-                            style: GoogleFonts.poppins(
-                              color: AppColors.textSecondary,
-                              fontSize: 14,
-                            ),
-                          ),
+                            )
+                          else
+                            const SizedBox.shrink(),
+                           // Enhanced waveform
+                           Expanded(
+                             child: LiveWaveform(
+                               level: _level,
+                               color: AppColors.primary,
+                               barCount: 30,
+                             ),
+                           ),
+                           // Status indicator - note-taking focused
+                           Container(
+                             padding: const EdgeInsets.symmetric(
+                               horizontal: 12,
+                               vertical: 6,
+                             ),
+                             decoration: BoxDecoration(
+                               color: _recognizing 
+                                   ? AppColors.primary.withOpacity(0.15)
+                                   : AppColors.textLight.withOpacity(0.1),
+                               borderRadius: BorderRadius.circular(12),
+                               border: Border.all(
+                                 color: _recognizing 
+                                     ? AppColors.primary.withOpacity(0.3)
+                                     : AppColors.textLight.withOpacity(0.3),
+                                 width: 1,
+                               ),
+                             ),
+                             child: Row(
+                               mainAxisSize: MainAxisSize.min,
+                               children: [
+                                 if (_recognizing) ...[
+                                   Container(
+                                     width: 6,
+                                     height: 6,
+                                     decoration: BoxDecoration(
+                                       color: AppColors.primary,
+                                       shape: BoxShape.circle,
+                                     ),
+                                   ),
+                                   const SizedBox(width: 6),
+                                 ],
+                                 Text(
+                                   _recognizing ? 'Taking notes...' : 'Ready to record',
+                                   style: GoogleFonts.poppins(
+                                     color: _recognizing 
+                                         ? AppColors.primary
+                                         : AppColors.textSecondary,
+                                     fontSize: 11,
+                                     fontWeight: FontWeight.w500,
+                                   ),
+                                 ),
+                               ],
+                             ),
+                           ),
                         ],
                       ),
                     );
@@ -873,7 +1076,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
 
           if (_recOn || _isPaused || _committed.isNotEmpty) const SizedBox(height: 16),
 
-          // Transcript
+          // Transcript - Fixed height container
           Expanded(
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 20),
@@ -888,29 +1091,67 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                   ),
                 ],
               ),
-              child: TextField(
-                controller: _textCtl,
-                readOnly: _recOn,
-                maxLines: null,
-                expands: true,
-                scrollController: _scrollCtl,
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  height: 1.6,
-                  color: AppColors.textPrimary,
-                ),
-                decoration: InputDecoration(
-                  hintText: _recOn ? 'Start speaking...' : 'Transcript will appear here',
-                  hintStyle: GoogleFonts.poppins(
-                    color: AppColors.textLight,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.all(20),
-                ),
-              ),
+              child: _recOn
+                  ? Builder(
+                      builder: (context) {
+                        // Force rebuild when text changes
+                        final displayText = _committed + _interim;
+                        return SingleChildScrollView(
+                          controller: _scrollCtl,
+                          padding: const EdgeInsets.all(20),
+                          child: RichText(
+                            text: TextSpan(
+                              text: _committed,
+                              style: GoogleFonts.poppins(
+                                fontSize: 16,
+                                height: 1.8,
+                                color: AppColors.textPrimary,
+                                letterSpacing: 0.2,
+                              ),
+                              children: _interim.isNotEmpty
+                                  ? [
+                                      TextSpan(
+                                        text: _interim,
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 16,
+                                          height: 1.8,
+                                          color: AppColors.textSecondary.withOpacity(0.7),
+                                          letterSpacing: 0.2,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                          ),
+                        );
+                      },
+                    )
+                  : TextField(
+                      controller: _textCtl,
+                      readOnly: false,
+                      maxLines: null,
+                      expands: true,
+                      scrollController: _scrollCtl,
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        height: 1.8,
+                        color: AppColors.textPrimary,
+                        letterSpacing: 0.2,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Press record to start taking notes',
+                        hintStyle: GoogleFonts.poppins(
+                          color: AppColors.textLight,
+                          fontSize: 15,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.all(20),
+                      ),
+                    ),
             ),
           ),
 

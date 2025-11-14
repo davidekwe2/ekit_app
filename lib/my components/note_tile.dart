@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/note.dart';
 import '../themes/colors.dart';
+import '../features/storage/store.dart';
 import 'dart:math' as math;
 
 class NoteTile extends StatelessWidget {
@@ -64,52 +65,70 @@ class NoteTile extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Note icon/thumbnail
-            Container(
-              width: 70,
-              height: 70,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    AppColors.primary.withOpacity(0.2),
-                    AppColors.primaryLight.withOpacity(0.2),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.note,
-                    color: AppColors.primary,
-                    size: 28,
-                  ),
-                  if (hasHighlights || hasAI) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (hasHighlights)
-                          Icon(
-                            Icons.highlight,
-                            size: 12,
-                            color: AppColors.accent2,
-                          ),
-                        if (hasHighlights && hasAI) const SizedBox(width: 4),
-                        if (hasAI)
-                          Icon(
-                            Icons.auto_awesome,
-                            size: 12,
-                            color: AppColors.primary,
-                          ),
+            // Note icon/thumbnail - use subject icon if available
+            Builder(
+              builder: (context) {
+                IconData noteIcon = Icons.note;
+                if (note.subject != null) {
+                  try {
+                    final subject = AppStore.subjects.firstWhere(
+                      (s) => s.id == note.subject,
+                      orElse: () => AppStore.subjects.first,
+                    );
+                    if (subject.icon != null) {
+                      noteIcon = subject.icon!;
+                    }
+                  } catch (e) {
+                    // Use default icon if subject not found
+                  }
+                }
+                return Container(
+                  width: 70,
+                  height: 70,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        AppColors.primary.withOpacity(0.2),
+                        AppColors.primaryLight.withOpacity(0.2),
                       ],
                     ),
-                  ],
-                ],
-              ),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        noteIcon,
+                        color: AppColors.primary,
+                        size: 28,
+                      ),
+                      if (hasHighlights || hasAI) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (hasHighlights)
+                              Icon(
+                                Icons.highlight,
+                                size: 12,
+                                color: AppColors.accent2,
+                              ),
+                            if (hasHighlights && hasAI) const SizedBox(width: 4),
+                            if (hasAI)
+                              Icon(
+                                Icons.auto_awesome,
+                                size: 12,
+                                color: AppColors.primary,
+                              ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              },
             ),
             const SizedBox(width: 16),
             // Note content
@@ -133,23 +152,38 @@ class NoteTile extends StatelessWidget {
                         ),
                       ),
                       if (note.subject != null)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            note.subject!,
-                            style: GoogleFonts.poppins(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.primary,
-                            ),
-                          ),
+                        Builder(
+                          builder: (context) {
+                            try {
+                              final subject = AppStore.subjects.firstWhere(
+                                (s) => s.id == note.subject,
+                                orElse: () => AppStore.subjects.first,
+                              );
+                              if (subject.id != 's0') {
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    subject.name,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              // Subject not found
+                            }
+                            return const SizedBox.shrink();
+                          },
                         ),
                     ],
                   ),

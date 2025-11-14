@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/note.dart';
 import '../themes/colors.dart';
 import '../features/storage/store.dart';
+import 'ai_chat_page.dart';
 import 'dart:math';
 
 class NoteDetailPage extends StatefulWidget {
@@ -235,6 +236,16 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
                 ),
               ),
               PopupMenuItem(
+                value: 'continue_ai',
+                child: Row(
+                  children: [
+                    Icon(Icons.chat_bubble_outline, color: AppColors.primary, size: 20),
+                    const SizedBox(width: 12),
+                    Text('Continue with AI', style: GoogleFonts.poppins()),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
                 value: 'more',
                 child: Row(
                   children: [
@@ -255,6 +266,14 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
                   break;
                 case 'keypoints':
                   _extractKeyPoints();
+                  break;
+                case 'continue_ai':
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => AIChatPage(importedNote: _note),
+                    ),
+                  );
                   break;
                 case 'more':
                   _showAIOptions();
@@ -313,46 +332,9 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
             ),
             const SizedBox(height: 24),
 
-            // Comments section
+            // Comments section (expandable)
             if (_note.comments != null && _note.comments!.isNotEmpty) ...[
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.accent.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: AppColors.accent.withOpacity(0.3),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.comment, color: AppColors.accent, size: 20),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Comments',
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _note.comments!,
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        color: AppColors.textSecondary,
-                        height: 1.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              _ExpandableCommentsSection(comments: _note.comments!),
               const SizedBox(height: 16),
             ],
 
@@ -594,6 +576,103 @@ class _AIResultCard extends StatelessWidget {
               color: AppColors.textPrimary,
               height: 1.5,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExpandableCommentsSection extends StatefulWidget {
+  final String comments;
+
+  const _ExpandableCommentsSection({required this.comments});
+
+  @override
+  State<_ExpandableCommentsSection> createState() => _ExpandableCommentsSectionState();
+}
+
+class _ExpandableCommentsSectionState extends State<_ExpandableCommentsSection> {
+  bool _isExpanded = false;
+  static const int _maxCollapsedLines = 3;
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = widget.comments.split('\n');
+    final shouldShowExpand = lines.length > _maxCollapsedLines || 
+                            widget.comments.length > 150;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.accent.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.accent.withOpacity(0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: shouldShowExpand
+                ? () {
+                    setState(() {
+                      _isExpanded = !_isExpanded;
+                    });
+                  }
+                : null,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Icon(Icons.comment, color: AppColors.accent, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Comments',
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  if (shouldShowExpand)
+                    Icon(
+                      _isExpanded ? Icons.expand_less : Icons.expand_more,
+                      color: AppColors.accent,
+                    ),
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              0,
+              16,
+              shouldShowExpand ? 16 : 16,
+            ),
+            child: _isExpanded || !shouldShowExpand
+                ? Text(
+                    widget.comments,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: AppColors.textSecondary,
+                      height: 1.5,
+                    ),
+                  )
+                : Text(
+                    widget.comments,
+                    maxLines: _maxCollapsedLines,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: AppColors.textSecondary,
+                      height: 1.5,
+                    ),
+                  ),
           ),
         ],
       ),

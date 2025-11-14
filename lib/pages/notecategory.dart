@@ -85,69 +85,72 @@ class _SubjectPageState extends State<SubjectPage> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      // No icon option
-                      GestureDetector(
-                        onTap: () {
-                          setDialogState(() {
-                            selectedIcon = null;
-                          });
-                        },
-                        child: Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: selectedIcon == null
-                                ? AppColors.primary.withOpacity(0.2)
-                                : AppColors.background,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        // No icon option
+                        GestureDetector(
+                          onTap: () {
+                            setDialogState(() {
+                              selectedIcon = null;
+                            });
+                          },
+                          child: Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
                               color: selectedIcon == null
-                                  ? AppColors.primary
-                                  : AppColors.textLight,
-                              width: 2,
+                                  ? AppColors.primary.withOpacity(0.2)
+                                  : AppColors.background,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: selectedIcon == null
+                                    ? AppColors.primary
+                                    : AppColors.textLight,
+                                width: 2,
+                              ),
                             ),
+                            child: const Icon(Icons.block, size: 24),
                           ),
-                          child: const Icon(Icons.block, size: 24),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      // Icon options
-                      ...availableIcons.map((icon) {
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: GestureDetector(
-                            onTap: () {
-                              setDialogState(() {
-                                selectedIcon = icon;
-                              });
-                            },
-                            child: Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: selectedIcon == icon
-                                    ? AppColors.primary.withOpacity(0.2)
-                                    : AppColors.background,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
+                        const SizedBox(width: 8),
+                        // Icon options
+                        ...availableIcons.map((icon) {
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: GestureDetector(
+                              onTap: () {
+                                setDialogState(() {
+                                  selectedIcon = icon;
+                                });
+                              },
+                              child: Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
                                   color: selectedIcon == icon
-                                      ? AppColors.primary
-                                      : AppColors.textLight,
-                                  width: 2,
+                                      ? AppColors.primary.withOpacity(0.2)
+                                      : AppColors.background,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: selectedIcon == icon
+                                        ? AppColors.primary
+                                        : AppColors.textLight,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: Icon(
+                                  icon,
+                                  color: AppColors.primary,
+                                  size: 24,
                                 ),
                               ),
-                              child: Icon(
-                                icon,
-                                color: AppColors.primary,
-                                size: 24,
-                              ),
                             ),
-                          ),
-                        );
-                      }),
-                    ],
+                          );
+                        }),
+                      ],
+                    ),
                   ),
                 ],
               ),
