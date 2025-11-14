@@ -22,7 +22,7 @@ class MyNotesTile extends StatelessWidget {
       child: ListTile(
         leading: const Icon(Icons.delete, color: Colors.red), // delete logo left
         title: Text(note.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: Text(note.category ?? 'No category'),
+        subtitle: Text(note.subject ?? 'No Subject'),
         trailing: IconButton(icon: const Icon(Icons.play_arrow), onPressed: onPlay),
       ),
     );
