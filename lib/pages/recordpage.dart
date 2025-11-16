@@ -209,15 +209,6 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
   Future<void> _start() async {
     if (_recOn) return;
     if (!(await Permission.microphone.request()).isGranted) return;
-    if (_stt == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Speech key not loaded'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
 
     // Only reset if starting fresh (not resuming)
     if (!_isPaused) {
@@ -239,113 +230,166 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
       }
     });
 
-    // Create new stream if not resuming (paused state means stream still exists)
-    if (_sttIn == null || _sttIn!.isClosed) {
-      _sttIn = StreamController<List<int>>();
-      
-      // Get the language code - use selected language or default to en-US
-      // Note: The google_speech package doesn't support alternativeLanguageCodes
-      // For auto-detect, we'll use en-US as default (true auto-detect requires API upgrade)
-      final languageCode = _autoDetectLanguage 
-          ? 'en-US' // Default for auto-detect (package limitation)
-          : (_selectedLang?.code ?? 'en-US');
-      
-      final cfg = RecognitionConfig(
-        encoding: AudioEncoding.LINEAR16,
-        sampleRateHertz: _rate,
-        languageCode: languageCode,
-        enableAutomaticPunctuation: true,
-        maxAlternatives: 1,
-        model: RecognitionModel.video,
-        useEnhanced: true,
-      );
+    // Initialize based on selected writer
+    if (_selectedWriter == 1) {
+      // Writer 1: Google Cloud TTS
+      if (_stt == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Speech key not loaded'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
 
-      final responses = _stt!.streamingRecognize(
-        StreamingRecognitionConfig(
-          config: cfg,
-          interimResults: true,
-          singleUtterance: false,
-        ),
-        _sttIn!.stream,
-      );
+      // Create new stream if not resuming (paused state means stream still exists)
+      if (_sttIn == null || _sttIn!.isClosed) {
+        _sttIn = StreamController<List<int>>();
+        
+        // Get the language code - use selected language or default to en-US
+        final languageCode = _autoDetectLanguage 
+            ? 'en-US' // Default for auto-detect (package limitation)
+            : (_selectedLang?.code ?? 'en-US');
+        
+        final cfg = RecognitionConfig(
+          encoding: AudioEncoding.LINEAR16,
+          sampleRateHertz: _rate,
+          languageCode: languageCode,
+          enableAutomaticPunctuation: true,
+          maxAlternatives: 1,
+          model: RecognitionModel.video,
+          useEnhanced: true,
+        );
 
-      // Set up listener with improved sentence handling
-      _sttSub?.cancel();
-      _sttSub = responses.listen((resp) async {
-        for (final r in resp.results) {
-          final t = r.alternatives.first.transcript;
-          if (r.isFinal) {
-            String toAdd;
-            if (_lastFinal.isNotEmpty && t.startsWith(_lastFinal)) {
-              toAdd = t.substring(_lastFinal.length).trimLeft();
+        final responses = _stt!.streamingRecognize(
+          StreamingRecognitionConfig(
+            config: cfg,
+            interimResults: true,
+            singleUtterance: false,
+          ),
+          _sttIn!.stream,
+        );
+
+        // Set up listener with improved sentence handling
+        _sttSub?.cancel();
+        _sttSub = responses.listen((resp) {
+          for (final r in resp.results) {
+            final t = r.alternatives.first.transcript;
+            if (r.isFinal) {
+              String toAdd;
+              if (_lastFinal.isNotEmpty && t.startsWith(_lastFinal)) {
+                toAdd = t.substring(_lastFinal.length).trimLeft();
+              } else {
+                toAdd = t.trimLeft();
+                if (_committed.isNotEmpty && !_committed.endsWith(' ')) {
+                  _committed += ' ';
+                }
+              }
+              if (toAdd.isNotEmpty) {
+                toAdd = toAdd.trim();
+                if (toAdd.isNotEmpty) {
+                  if (_committed.isNotEmpty && 
+                      !_committed.endsWith(' ') && 
+                      !_committed.endsWith('\n')) {
+                    _committed += ' ';
+                  }
+                  _committed += toAdd;
+                  if (!_committed.endsWith('.') && 
+                      !_committed.endsWith('!') && 
+                      !_committed.endsWith('?') &&
+                      !_committed.endsWith(',') &&
+                      !_committed.endsWith(';') &&
+                      !_committed.endsWith(' ')) {
+                    _committed += ' ';
+                  }
+                }
+              }
+              _lastFinal = t;
+              _interim = '';
             } else {
-              toAdd = t.trimLeft();
+              if (_lastFinal.isNotEmpty && t.startsWith(_lastFinal)) {
+                _interim = t.substring(_lastFinal.length);
+              } else {
+                _interim = t;
+              }
+            }
+          }
+          if (mounted) {
+            _updateTextField();
+          }
+        }, onError: (_) {
+          if (mounted) {
+            setState(() => _recognizing = false);
+          }
+        }, onDone: () {
+          if (mounted) {
+            setState(() => _recognizing = false);
+          }
+        });
+      }
+    } else if (_selectedWriter == 2) {
+      // Writer 2: Gemini Live streaming
+      try {
+        setState(() => _isProcessingWithGemini = true);
+        _geminiLive = GeminiLiveService();
+        await _geminiLive!.connect();
+        
+        // Listen to transcript stream
+        _geminiLiveSub?.cancel();
+        _geminiLiveSub = _geminiLive!.transcriptStream.listen(
+          (text) {
+            if (mounted && text.isNotEmpty) {
+              // Append new transcript text
               if (_committed.isNotEmpty && !_committed.endsWith(' ')) {
                 _committed += ' ';
               }
-            }
-            if (toAdd.isNotEmpty) {
-              // Clean up the text to add
-              toAdd = toAdd.trim();
-              if (toAdd.isNotEmpty) {
-                // If Writer 2 (Gemini) is selected, process with Gemini
-                if (_selectedWriter == 2) {
-                  setState(() => _isProcessingWithGemini = true);
-                  try {
-                    final processedText = await GeminiService.processTextChunk(toAdd);
-                    toAdd = processedText;
-                  } catch (e) {
-                    // If Gemini fails, use original text
-                    print('Gemini processing error: $e');
-                  } finally {
-                    if (mounted) {
-                      setState(() => _isProcessingWithGemini = false);
-                    }
-                  }
-                }
-                
-                // Add space before new text if needed
-                if (_committed.isNotEmpty && 
-                    !_committed.endsWith(' ') && 
-                    !_committed.endsWith('\n')) {
-                  _committed += ' ';
-                }
-                _committed += toAdd;
-                // Add space after if it doesn't end with punctuation
-                if (!_committed.endsWith('.') && 
-                    !_committed.endsWith('!') && 
-                    !_committed.endsWith('?') &&
-                    !_committed.endsWith(',') &&
-                    !_committed.endsWith(';') &&
-                    !_committed.endsWith(' ')) {
-                  _committed += ' ';
-                }
+              _committed += text.trim();
+              if (!_committed.endsWith('.') && 
+                  !_committed.endsWith('!') && 
+                  !_committed.endsWith('?') &&
+                  !_committed.endsWith(',') &&
+                  !_committed.endsWith(';') &&
+                  !_committed.endsWith(' ')) {
+                _committed += ' ';
               }
+              _updateTextField();
             }
-            _lastFinal = t;
-            _interim = '';
-          } else {
-            // For interim results, only show the new part
-            if (_lastFinal.isNotEmpty && t.startsWith(_lastFinal)) {
-              _interim = t.substring(_lastFinal.length);
-            } else {
-              _interim = t;
+          },
+          onError: (error) {
+            print('Gemini Live error: $error');
+            if (mounted) {
+              setState(() {
+                _recognizing = false;
+                _isProcessingWithGemini = false;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Gemini Live error: $error'),
+                  backgroundColor: AppColors.error,
+                ),
+              );
             }
-          }
-        }
-        // Update immediately for real-time feel
+          },
+        );
+        
+        setState(() => _isProcessingWithGemini = false);
+      } catch (e) {
+        print('Failed to connect to Gemini Live: $e');
         if (mounted) {
-          _updateTextField();
+          setState(() {
+            _recognizing = false;
+            _isProcessingWithGemini = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to connect to Gemini Live: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+          return;
         }
-      }, onError: (_) {
-        if (mounted) {
-          setState(() => _recognizing = false);
-        }
-      }, onDone: () {
-        if (mounted) {
-          setState(() => _recognizing = false);
-        }
-      });
+      }
     }
 
     await _rec.start();
@@ -361,11 +405,20 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
         _recOn = false;
       });
     } else {
-      // If recording, close STT stream
-      await _sttIn?.close();
-      _sttIn = null;
-      await _sttSub?.cancel();
-      _sttSub = null;
+      // If recording, close streams based on writer
+      if (_selectedWriter == 1) {
+        // Writer 1: Close Google Cloud TTS stream
+        await _sttIn?.close();
+        _sttIn = null;
+        await _sttSub?.cancel();
+        _sttSub = null;
+      } else if (_selectedWriter == 2) {
+        // Writer 2: Disconnect Gemini Live
+        await _geminiLiveSub?.cancel();
+        _geminiLiveSub = null;
+        await _geminiLive?.disconnect();
+        _geminiLive = null;
+      }
     }
     _lastFinal = '';
     _prevLevel = 0;
@@ -375,6 +428,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
     setState(() {
       _recognizing = false;
       _recOn = false;
+      _isProcessingWithGemini = false;
     });
     
     // Auto-save and navigate if there's content

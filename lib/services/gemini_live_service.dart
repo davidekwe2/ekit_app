@@ -48,12 +48,17 @@ class GeminiLiveService {
 
     try {
       // Gemini Live API WebSocket endpoint
-      // Note: The actual endpoint may vary - this is the standard format
+      // Using the latest Gemini Live API endpoint format
+      // Note: You may need to verify the exact endpoint from Google's latest documentation
       final wsUrl = Uri.parse(
         'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=$_apiKey'
       );
 
       _channel = WebSocketChannel.connect(wsUrl);
+      
+      // Wait a moment for connection to establish
+      await Future.delayed(const Duration(milliseconds: 500));
+      
       _isConnected = true;
 
       // Send initial setup message

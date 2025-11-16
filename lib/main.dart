@@ -8,13 +8,16 @@ import 'package:ekit_app/themes/colors.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'firebase_options.dart';
 
+// Note: firebase_options.dart is NOT committed to git for security
+// Each developer should run: flutterfire configure --project=ekitnote
+// to generate their own firebase_options.dart file locally
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // Initialize Firebase - will use google-services.json for Android
+  // If firebase_options.dart exists locally, it will be used automatically
+  // Otherwise, Firebase will use platform-specific config files
+  await Firebase.initializeApp();
   runApp(const MyApp());
 }
 
