@@ -5,10 +5,13 @@ import 'package:ekit_app/pages/recordpage.dart';
 import 'package:ekit_app/pages/auth/login_page.dart';
 import 'package:ekit_app/pages/auth/signup_page.dart';
 import 'package:ekit_app/themes/colors.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   runApp(const MyApp());
 }
 

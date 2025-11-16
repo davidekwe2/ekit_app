@@ -18,6 +18,7 @@ import '../models/note.dart';
 import '../models/category.dart';
 import '../my components/live_waveform.dart';
 import '../themes/colors.dart';
+import '../services/gemini_service.dart';
 import 'note_detail_page.dart';
 
 class RecordPage extends StatefulWidget {
@@ -71,6 +72,10 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
   String? _aiSummary;
   String? _aiTranslation;
   List<String>? _importantPoints;
+
+  // Writer selection (Writer 1 = Google Cloud TTS, Writer 2 = Gemini)
+  int _selectedWriter = 1; // Default to Writer 1
+  bool _isProcessingWithGemini = false;
 
   static const _rate = 16000;
   static const _keyAssetPath = 'lib/assets/keys/stt_service_account.json';
@@ -250,7 +255,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
 
       // Set up listener with improved sentence handling
       _sttSub?.cancel();
-      _sttSub = responses.listen((resp) {
+      _sttSub = responses.listen((resp) async {
         for (final r in resp.results) {
           final t = r.alternatives.first.transcript;
           if (r.isFinal) {
@@ -267,6 +272,22 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
               // Clean up the text to add
               toAdd = toAdd.trim();
               if (toAdd.isNotEmpty) {
+                // If Writer 2 (Gemini) is selected, process with Gemini
+                if (_selectedWriter == 2) {
+                  setState(() => _isProcessingWithGemini = true);
+                  try {
+                    final processedText = await GeminiService.processTextChunk(toAdd);
+                    toAdd = processedText;
+                  } catch (e) {
+                    // If Gemini fails, use original text
+                    print('Gemini processing error: $e');
+                  } finally {
+                    if (mounted) {
+                      setState(() => _isProcessingWithGemini = false);
+                    }
+                  }
+                }
+                
                 // Add space before new text if needed
                 if (_committed.isNotEmpty && 
                     !_committed.endsWith(' ') && 
@@ -821,6 +842,75 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
       ),
       body: Column(
         children: [
+          // Writer selection (Writer 1/Writer 2)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.edit_note, color: AppColors.primary, size: 22),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Writer:',
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _WriterButton(
+                            label: 'Writer 1',
+                            subtitle: 'Google Cloud TTS',
+                            isSelected: _selectedWriter == 1,
+                            onTap: (_recOn || _isPaused) 
+                                ? null 
+                                : () {
+                                    setState(() {
+                                      _selectedWriter = 1;
+                                    });
+                                  },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _WriterButton(
+                            label: 'Writer 2',
+                            subtitle: 'Gemini AI',
+                            isSelected: _selectedWriter == 2,
+                            onTap: (_recOn || _isPaused) 
+                                ? null 
+                                : () {
+                                    setState(() {
+                                      _selectedWriter = 2;
+                                    });
+                                  },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
           // Language selector
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -1026,7 +1116,11 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                                    const SizedBox(width: 6),
                                  ],
                                  Text(
-                                   _recognizing ? 'Taking notes...' : 'Ready to record',
+                                   _recognizing 
+                                       ? (_isProcessingWithGemini 
+                                           ? 'Processing with Gemini...' 
+                                           : 'Taking notes...')
+                                       : 'Ready to record',
                                    style: GoogleFonts.poppins(
                                      color: _recognizing 
                                          ? AppColors.primary
@@ -1390,6 +1484,69 @@ class _AIActionButton extends StatelessWidget {
                 fontSize: 11,
                 color: AppColors.textPrimary,
                 fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WriterButton extends StatelessWidget {
+  final String label;
+  final String subtitle;
+  final bool isSelected;
+  final VoidCallback? onTap;
+
+  const _WriterButton({
+    required this.label,
+    required this.subtitle,
+    required this.isSelected,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.primary.withOpacity(0.15)
+              : AppColors.background,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? AppColors.primary
+                : AppColors.textLight.withOpacity(0.3),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: isSelected
+                    ? AppColors.primary
+                    : AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: GoogleFonts.poppins(
+                fontSize: 10,
+                color: isSelected
+                    ? AppColors.primary.withOpacity(0.8)
+                    : AppColors.textSecondary,
               ),
               textAlign: TextAlign.center,
             ),
