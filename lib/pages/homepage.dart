@@ -5,7 +5,8 @@ import 'package:ekit_app/my%20components/mytextfield.dart';
 import 'package:ekit_app/themes/colors.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../features/storage/store.dart';
 import '../my%20components/mynotes_tile.dart';
 import '../models/note.dart';
@@ -418,11 +419,21 @@ class _HomePageState extends State<HomePage> {
                       title: "Logout",
                       onTap: () async {
                         Navigator.pop(context);
-                        // Handle logout
-                        final prefs = await SharedPreferences.getInstance();
-                        await prefs.setBool('isLoggedIn', false);
-                        if (context.mounted) {
-                          Navigator.pushReplacementNamed(context, '/login');
+                        // Handle logout with Firebase Auth
+                        try {
+                          // Sign out from Google Sign In if signed in with Google
+                          await GoogleSignIn().signOut();
+                          // Sign out from Firebase Auth
+                          await FirebaseAuth.instance.signOut();
+                          
+                          if (context.mounted) {
+                            Navigator.pushReplacementNamed(context, '/login');
+                          }
+                        } catch (e) {
+                          // Even if there's an error, try to navigate to login
+                          if (context.mounted) {
+                            Navigator.pushReplacementNamed(context, '/login');
+                          }
                         }
                       },
                     ),

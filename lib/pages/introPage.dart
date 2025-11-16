@@ -2,7 +2,7 @@ import 'package:ekit_app/my%20components/myButtons.dart';
 import 'package:ekit_app/themes/colors.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:ekit_app/pages/auth/login_page.dart';
 
 class IntroPage extends StatefulWidget {
@@ -56,13 +56,15 @@ class _IntroPageState extends State<IntroPage> with SingleTickerProviderStateMix
   }
 
   Future<void> _checkLoginStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+    // Check Firebase Auth state
+    final User? user = FirebaseAuth.instance.currentUser;
     
     if (mounted) {
-      if (isLoggedIn) {
+      if (user != null) {
+        // User is logged in, navigate to home
         Navigator.pushReplacementNamed(context, '/home');
       } else {
+        // User is not logged in, navigate to login
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(

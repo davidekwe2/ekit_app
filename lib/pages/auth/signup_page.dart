@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../themes/colors.dart';
 import '../homepage.dart';
+import 'login_page.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -14,6 +15,7 @@ class SignUpPage extends StatefulWidget {
 }
 
 class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateMixin {
+  final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
@@ -21,12 +23,20 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isPasswordFocused = false;
+  late FocusNode _passwordFocusNode;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
     super.initState();
+    _passwordFocusNode = FocusNode();
+    _passwordFocusNode.addListener(() {
+      setState(() {
+        _isPasswordFocused = _passwordFocusNode.hasFocus;
+      });
+    });
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -39,9 +49,11 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
 
   @override
   void dispose() {
+    _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _passwordFocusNode.dispose();
     _animationController.dispose();
     super.dispose();
   }
@@ -51,22 +63,97 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
 
     setState(() => _isLoading = true);
 
-    // Simple signup - just save credentials
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isLoggedIn', true);
-    await prefs.setString('email', _emailController.text.trim());
-    
-    if (mounted) {
-      Navigator.pushReplacement(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => const HomePage(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-          transitionDuration: const Duration(milliseconds: 400),
-        ),
+    try {
+      final username = _usernameController.text.trim();
+      final email = _emailController.text.trim();
+      final password = _passwordController.text.trim();
+
+      // Create user with Firebase Auth
+      final UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
       );
+
+      // Update user profile with username
+      if (userCredential.user != null && username.isNotEmpty) {
+        try {
+          await userCredential.user!.updateDisplayName(username);
+          await userCredential.user!.reload();
+        } catch (e) {
+          // Log error but don't fail the signup if display name update fails
+          debugPrint('Failed to update display name: $e');
+        }
+      }
+
+      // Send email verification
+      if (userCredential.user != null) {
+        try {
+          await userCredential.user!.sendEmailVerification();
+        } catch (e) {
+          // Log error but don't fail the signup if email verification fails
+          debugPrint('Failed to send email verification: $e');
+        }
+      }
+
+      if (userCredential.user != null && mounted) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account created successfully! Please verify your email and sign in.'),
+            backgroundColor: AppColors.success,
+            duration: Duration(seconds: 3),
+          ),
+        );
+
+        // Navigate to login page
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => const LoginPage(),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+            transitionDuration: const Duration(milliseconds: 400),
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      String errorMessage = 'An error occurred. Please try again.';
+      
+      if (e.code == 'weak-password') {
+        errorMessage = 'The password provided is too weak.';
+      } else if (e.code == 'email-already-in-use') {
+        errorMessage = 'An account already exists with this email.';
+      } else if (e.code == 'invalid-email') {
+        errorMessage = 'Invalid email address.';
+      } else if (e.code == 'operation-not-allowed') {
+        errorMessage = 'Email/password accounts are not enabled. Please enable it in Firebase Console.';
+      } else if (e.code == 'network-request-failed') {
+        errorMessage = 'Network error. Please check your connection.';
+      } else {
+        // Show the actual error code and message for debugging
+        errorMessage = 'Error: ${e.code} - ${e.message ?? "Unknown error"}';
+      }
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sign up failed: $e'),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
     }
 
     setState(() => _isLoading = false);
@@ -75,25 +162,66 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
   Future<void> _handleGoogleSignIn() async {
     setState(() => _isLoading = true);
     try {
+      // Trigger the Google Sign In flow
       final GoogleSignIn googleSignIn = GoogleSignIn();
-      final GoogleSignInAccount? account = await googleSignIn.signIn();
+      final GoogleSignInAccount? googleAccount = await googleSignIn.signIn();
       
-      if (account != null) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('isLoggedIn', true);
-        
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            PageRouteBuilder(
-              pageBuilder: (context, animation, secondaryAnimation) => const HomePage(),
-              transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                return FadeTransition(opacity: animation, child: child);
-              },
-              transitionDuration: const Duration(milliseconds: 400),
-            ),
-          );
+      if (googleAccount == null) {
+        // User cancelled the sign-in
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // Obtain the auth details from the request
+      final GoogleSignInAuthentication googleAuth = await googleAccount.authentication;
+
+      // Create a new credential
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Sign in to Firebase with the Google credential
+      final UserCredential userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+
+      // Update display name if not set (for new users)
+      if (userCredential.user != null && userCredential.user!.displayName == null && googleAccount.displayName != null) {
+        try {
+          await userCredential.user!.updateDisplayName(googleAccount.displayName);
+          await userCredential.user!.reload();
+        } catch (e) {
+          debugPrint('Failed to update display name from Google: $e');
         }
+      }
+
+      if (userCredential.user != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Signed in with Google successfully!'),
+            backgroundColor: AppColors.success,
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => const HomePage(),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+            transitionDuration: const Duration(milliseconds: 400),
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Google sign in failed: ${e.message ?? e.code}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -118,11 +246,40 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
         ],
       );
       
-      if (credential.userIdentifier != null) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('isLoggedIn', true);
-        
-        if (mounted) {
+      if (credential.identityToken != null) {
+        // Create an OAuth credential for Firebase
+        final oauthCredential = OAuthProvider("apple.com").credential(
+          idToken: credential.identityToken,
+          accessToken: credential.authorizationCode,
+        );
+
+        // Sign in to Firebase with the Apple credential
+        final UserCredential userCredential = await FirebaseAuth.instance.signInWithCredential(oauthCredential);
+
+        // Update display name if available (only on first sign in)
+        if (userCredential.user != null && 
+            userCredential.user!.displayName == null && 
+            credential.givenName != null) {
+          try {
+            final fullName = '${credential.givenName ?? ''} ${credential.familyName ?? ''}'.trim();
+            if (fullName.isNotEmpty) {
+              await userCredential.user!.updateDisplayName(fullName);
+              await userCredential.user!.reload();
+            }
+          } catch (e) {
+            debugPrint('Failed to update display name from Apple: $e');
+          }
+        }
+
+        if (userCredential.user != null && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Signed in with Apple successfully!'),
+              backgroundColor: AppColors.success,
+              duration: Duration(seconds: 2),
+            ),
+          );
+
           Navigator.pushReplacement(
             context,
             PageRouteBuilder(
@@ -229,6 +386,50 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
                       ),
                       const SizedBox(height: 40),
                       
+                      // Username field
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 10,
+                              offset: const Offset(0, 5),
+                            ),
+                          ],
+                        ),
+                        child: TextFormField(
+                          controller: _usernameController,
+                          keyboardType: TextInputType.text,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: InputDecoration(
+                            hintText: 'Username',
+                            prefixIcon: const Icon(Icons.person_outline, color: AppColors.primary),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide.none,
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter a username';
+                            }
+                            if (value.length < 3) {
+                              return 'Username must be at least 3 characters';
+                            }
+                            if (value.length > 20) {
+                              return 'Username must be less than 20 characters';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      
                       // Email field
                       Container(
                         decoration: BoxDecoration(
@@ -284,7 +485,11 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
                         ),
                         child: TextFormField(
                           controller: _passwordController,
+                          focusNode: _passwordFocusNode,
                           obscureText: _obscurePassword,
+                          onChanged: (value) {
+                            setState(() {});
+                          },
                           decoration: InputDecoration(
                             hintText: 'Password',
                             prefixIcon: const Icon(Icons.lock_outline, color: AppColors.primary),
@@ -309,14 +514,45 @@ class _SignUpPageState extends State<SignUpPage> with SingleTickerProviderStateM
                             if (value == null || value.isEmpty) {
                               return 'Please enter a password';
                             }
-                            if (value.length < 6) {
-                              return 'Password must be at least 6 characters';
+                            if (value.length < 8) {
+                              return 'Password must be at least 8 characters';
+                            }
+                            // Check for at least one letter
+                            if (!value.contains(RegExp(r'[a-zA-Z]'))) {
+                              return 'Password must contain at least one letter';
+                            }
+                            // Check for at least one number
+                            if (!value.contains(RegExp(r'[0-9]'))) {
+                              return 'Password must contain at least one number';
                             }
                             return null;
                           },
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      // Password requirements hint (shown when focused or has text)
+                      if (_isPasswordFocused || _passwordController.text.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8.0, left: 4.0),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline, size: 14, color: Colors.white.withOpacity(0.7)),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  '8+ characters with letters & numbers',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: Colors.white.withOpacity(0.7),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (_isPasswordFocused || _passwordController.text.isNotEmpty)
+                        const SizedBox(height: 12),
+                      if (!_isPasswordFocused && _passwordController.text.isEmpty)
+                        const SizedBox(height: 20),
                       
                       // Confirm Password field
                       Container(

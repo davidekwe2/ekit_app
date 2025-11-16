@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../themes/colors.dart';
 import '../../my components/mytextfield.dart';
 import '../../my components/myButtons.dart';
@@ -50,13 +50,17 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
 
     setState(() => _isLoading = true);
 
-    // Simple validation - admin/admin for now
-    if (_emailController.text.trim() == 'admin' && 
-        _passwordController.text.trim() == 'admin') {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('isLoggedIn', true);
-      
-      if (mounted) {
+    try {
+      final email = _emailController.text.trim();
+      final password = _passwordController.text.trim();
+
+      // Sign in with Firebase Auth
+      final UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      if (userCredential.user != null && mounted) {
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
@@ -68,11 +72,36 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
           ),
         );
       }
-    } else {
+    } on FirebaseAuthException catch (e) {
+      String errorMessage = 'An error occurred. Please try again.';
+      
+      if (e.code == 'user-not-found') {
+        errorMessage = 'No user found with this email.';
+      } else if (e.code == 'wrong-password') {
+        errorMessage = 'Wrong password provided.';
+      } else if (e.code == 'invalid-email') {
+        errorMessage = 'Invalid email address.';
+      } else if (e.code == 'user-disabled') {
+        errorMessage = 'This account has been disabled.';
+      } else if (e.code == 'too-many-requests') {
+        errorMessage = 'Too many failed attempts. Please try again later.';
+      } else if (e.code == 'network-request-failed') {
+        errorMessage = 'Network error. Please check your connection.';
+      }
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Invalid credentials. Use admin/admin for now.'),
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Login failed: $e'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -85,25 +114,48 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
   Future<void> _handleGoogleSignIn() async {
     setState(() => _isLoading = true);
     try {
+      // Trigger the Google Sign In flow
       final GoogleSignIn googleSignIn = GoogleSignIn();
-      final GoogleSignInAccount? account = await googleSignIn.signIn();
+      final GoogleSignInAccount? googleAccount = await googleSignIn.signIn();
       
-      if (account != null) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('isLoggedIn', true);
-        
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            PageRouteBuilder(
-              pageBuilder: (context, animation, secondaryAnimation) => const HomePage(),
-              transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                return FadeTransition(opacity: animation, child: child);
-              },
-              transitionDuration: const Duration(milliseconds: 400),
-            ),
-          );
-        }
+      if (googleAccount == null) {
+        // User cancelled the sign-in
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // Obtain the auth details from the request
+      final GoogleSignInAuthentication googleAuth = await googleAccount.authentication;
+
+      // Create a new credential
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Sign in to Firebase with the Google credential
+      final UserCredential userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+
+      if (userCredential.user != null && mounted) {
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => const HomePage(),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+            transitionDuration: const Duration(milliseconds: 400),
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Google sign in failed: ${e.message ?? e.code}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -128,11 +180,17 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
         ],
       );
       
-      if (credential.userIdentifier != null) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('isLoggedIn', true);
-        
-        if (mounted) {
+      if (credential.identityToken != null) {
+        // Create an OAuth credential for Firebase
+        final oauthCredential = OAuthProvider("apple.com").credential(
+          idToken: credential.identityToken,
+          accessToken: credential.authorizationCode,
+        );
+
+        // Sign in to Firebase with the Apple credential
+        final UserCredential userCredential = await FirebaseAuth.instance.signInWithCredential(oauthCredential);
+
+        if (userCredential.user != null && mounted) {
           Navigator.pushReplacement(
             context,
             PageRouteBuilder(
@@ -156,6 +214,58 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       }
     }
     setState(() => _isLoading = false);
+  }
+
+  Future<void> _handleForgotPassword() async {
+    if (_emailController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter your email address first'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(
+        email: _emailController.text.trim(),
+      );
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Password reset email sent! Check your inbox.'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      String errorMessage = 'Failed to send reset email.';
+      if (e.code == 'user-not-found') {
+        errorMessage = 'No account found with this email.';
+      } else if (e.code == 'invalid-email') {
+        errorMessage = 'Invalid email address.';
+      }
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -246,7 +356,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
                           decoration: InputDecoration(
-                            hintText: 'Email or Username',
+                            hintText: 'Email',
                             prefixIcon: const Icon(Icons.person_outline, color: AppColors.primary),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16),
@@ -258,7 +368,10 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                           ),
                           validator: (value) {
                             if (value == null || value.isEmpty) {
-                              return 'Please enter your email or username';
+                              return 'Please enter your email';
+                            }
+                            if (!value.contains('@') || !value.contains('.')) {
+                              return 'Please enter a valid email address';
                             }
                             return null;
                           },
@@ -316,11 +429,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Use admin/admin for now')),
-                            );
-                          },
+                          onPressed: _isLoading ? null : _handleForgotPassword,
                           child: Text(
                             'Forgot Password?',
                             style: GoogleFonts.poppins(
