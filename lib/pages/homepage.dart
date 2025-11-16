@@ -295,6 +295,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildDrawer(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final displayName = user?.displayName ?? 'User';
+    final email = user?.email ?? 'No email';
+    
     return Drawer(
       child: Container(
         decoration: const BoxDecoration(
@@ -334,7 +338,7 @@ class _HomePageState extends State<HomePage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            "Student",
+                            displayName,
                             style: GoogleFonts.poppins(
                               color: Colors.white,
                               fontSize: 18,
@@ -342,7 +346,7 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ),
                           Text(
-                            "student@example.com",
+                            email,
                             style: GoogleFonts.poppins(
                               color: Colors.white.withOpacity(0.8),
                               fontSize: 14,
