@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../themes/colors.dart';
 import '../models/note.dart';
 import '../features/storage/store.dart';
+import '../services/gemini_service.dart';
 
 class AIChatPage extends StatefulWidget {
   final Note? importedNote;
@@ -18,6 +19,7 @@ class _AIChatPageState extends State<AIChatPage> {
   final ScrollController _scrollController = ScrollController();
   late List<ChatMessage> _messages;
   Note? _currentNote;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -29,7 +31,7 @@ class _AIChatPageState extends State<AIChatPage> {
       ChatMessage(
         text: _currentNote != null
             ? "I've imported your note: '${_currentNote!.title}'. I can help you understand it better, answer questions about it, summarize it, or extract key points. What would you like to know?"
-            : "Hi! I'm your AI assistant. I can help you with your notes, summarize content, translate text, and extract key points. You can also import a note to discuss it with me. How can I help you today?",
+            : "Hi! I'm your educational AI assistant. I can help you with:\n• Understanding concepts and explaining topics\n• Answering homework and study questions\n• Summarizing and analyzing your notes\n• Extracting key points from educational content\n• Study tips and learning strategies\n• Translations for educational purposes\n\nYou can also import a note to discuss it with me. How can I help you learn today?",
         isUser: false,
         timestamp: DateTime.now(),
       ),
@@ -55,37 +57,89 @@ class _AIChatPageState extends State<AIChatPage> {
     super.dispose();
   }
 
-  void _sendMessage() {
-    if (_messageController.text.trim().isEmpty) return;
+  Future<void> _sendMessage() async {
+    if (_messageController.text.trim().isEmpty || _isLoading) return;
+
+    final userMessage = _messageController.text.trim();
+    _messageController.clear();
 
     setState(() {
       _messages.add(
         ChatMessage(
-          text: _messageController.text.trim(),
+          text: userMessage,
           isUser: true,
           timestamp: DateTime.now(),
         ),
       );
+      _isLoading = true;
     });
 
-    _messageController.clear();
     _scrollToBottom();
 
-    // Simulate AI response (replace with actual AI call)
-    Future.delayed(const Duration(seconds: 1), () {
+    try {
+      // Build conversation history (excluding system messages)
+      List<Map<String, String>> conversationHistory = [];
+      for (var message in _messages) {
+        if (!message.isSystem) {
+          conversationHistory.add({
+            'role': message.isUser ? 'user' : 'model',
+            'text': message.text,
+          });
+        }
+      }
+
+      // Get note context if available
+      String? noteContext;
+      if (_currentNote != null) {
+        noteContext = _currentNote!.transcript;
+      }
+
+      // Call Gemini API
+      final response = await GeminiService.chatWithGemini(
+        userMessage: userMessage,
+        conversationHistory: conversationHistory.length > 1 
+            ? conversationHistory.sublist(0, conversationHistory.length - 1) 
+            : null,
+        noteContext: noteContext,
+      );
+
       if (mounted) {
         setState(() {
           _messages.add(
             ChatMessage(
-              text: "I understand your question. This is a simulated response. In a real implementation, this would connect to an AI service like OpenAI or Google's Gemini API.",
+              text: response,
               isUser: false,
               timestamp: DateTime.now(),
             ),
           );
+          _isLoading = false;
         });
         _scrollToBottom();
       }
-    });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _messages.add(
+            ChatMessage(
+              text: 'Sorry, I encountered an error: ${e.toString()}. Please check your API key and internet connection.',
+              isUser: false,
+              timestamp: DateTime.now(),
+            ),
+          );
+          _isLoading = false;
+        });
+        _scrollToBottom();
+        
+        // Show error snackbar
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
   }
 
   void _scrollToBottom() {
@@ -290,8 +344,17 @@ class _AIChatPageState extends State<AIChatPage> {
                       shape: BoxShape.circle,
                     ),
                     child: IconButton(
-                      icon: const Icon(Icons.send, color: Colors.white),
-                      onPressed: _sendMessage,
+                      icon: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Icon(Icons.send, color: Colors.white),
+                      onPressed: _isLoading ? null : _sendMessage,
                     ),
                   ),
                 ],
