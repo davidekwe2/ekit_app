@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:ekit_app/my%20components/myButtons.dart';
@@ -27,9 +28,17 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  StreamSubscription? _authStateSubscription;
+
   @override
   void initState() {
     super.initState();
+    // Listen to user changes (including profile updates) to update user info in drawer
+    _authStateSubscription = FirebaseAuth.instance.userChanges().listen((user) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
     // Refresh when returning to this page
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {});
@@ -37,24 +46,35 @@ class _HomePageState extends State<HomePage> {
   }
 
   @override
+  void dispose() {
+    _authStateSubscription?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final notes = AppStore.notes;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor = theme.colorScheme.onSurface;
+    final cardColor = theme.cardColor;
+    final backgroundColor = theme.scaffoldBackgroundColor;
     
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
         leading: Builder(
           builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: AppColors.textPrimary, size: 28),
+            icon: Icon(Icons.menu, color: textColor, size: 28),
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
         title: Text(
           "EKit Notes",
           style: GoogleFonts.poppins(
-            color: AppColors.textPrimary,
+            color: textColor,
             fontWeight: FontWeight.bold,
             fontSize: 24,
           ),
@@ -79,24 +99,25 @@ class _HomePageState extends State<HomePage> {
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: cardColor,
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
+                              color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
                               blurRadius: 10,
                               offset: const Offset(0, 5),
                             ),
                           ],
                         ),
                         child: TextField(
+                          style: GoogleFonts.poppins(color: textColor),
                           decoration: InputDecoration(
                             hintText: "Search through your notes 📚",
                             hintStyle: GoogleFonts.poppins(
-                              color: AppColors.textSecondary,
+                              color: theme.colorScheme.onSurface.withOpacity(0.6),
                               fontSize: 16,
                             ),
-                            prefixIcon: const Icon(
+                            prefixIcon: Icon(
                               Icons.search,
                               color: AppColors.primary,
                             ),
@@ -105,7 +126,7 @@ class _HomePageState extends State<HomePage> {
                               borderSide: BorderSide.none,
                             ),
                             filled: true,
-                            fillColor: Colors.white,
+                            fillColor: cardColor,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 20,
                               vertical: 16,
@@ -205,7 +226,7 @@ class _HomePageState extends State<HomePage> {
                             style: GoogleFonts.poppins(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
+                              color: textColor,
                             ),
                           ),
                           TextButton(
@@ -239,14 +260,14 @@ class _HomePageState extends State<HomePage> {
                         Icon(
                           Icons.note_add_outlined,
                           size: 80,
-                          color: AppColors.textLight,
+                          color: theme.colorScheme.onSurface.withOpacity(0.5),
                         ),
                         const SizedBox(height: 16),
                         Text(
                           "No notes yet",
                           style: GoogleFonts.poppins(
                             fontSize: 20,
-                            color: AppColors.textSecondary,
+                            color: textColor,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -255,7 +276,7 @@ class _HomePageState extends State<HomePage> {
                           "Start recording to create your first note!",
                           style: GoogleFonts.poppins(
                             fontSize: 14,
-                            color: AppColors.textLight,
+                            color: theme.colorScheme.onSurface.withOpacity(0.6),
                           ),
                         ),
                       ],
@@ -318,12 +339,16 @@ class _HomePageState extends State<HomePage> {
             children: [
               // Header (Clickable to go to Profile)
               InkWell(
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  Navigator.push(
+                  await Navigator.push(
                     context,
                     MaterialPageRoute(builder: (context) => const ProfilePage()),
                   );
+                  // Refresh when returning from profile page
+                  if (mounted) {
+                    setState(() {});
+                  }
                 },
                 child: Padding(
                   padding: const EdgeInsets.all(20),
@@ -429,12 +454,16 @@ class _HomePageState extends State<HomePage> {
                     _DrawerItem(
                       icon: Icons.person_outline,
                       title: "Profile",
-                      onTap: () {
+                      onTap: () async {
                         Navigator.pop(context);
-                        Navigator.push(
+                        await Navigator.push(
                           context,
                           MaterialPageRoute(builder: (context) => const ProfilePage()),
                         );
+                        // Refresh when returning from profile page
+                        if (mounted) {
+                          setState(() {});
+                        }
                       },
                     ),
                     _DrawerItem(

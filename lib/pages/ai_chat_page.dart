@@ -233,13 +233,19 @@ class _AIChatPageState extends State<AIChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor = theme.colorScheme.onSurface;
+    final cardColor = theme.cardColor;
+    final backgroundColor = theme.scaffoldBackgroundColor;
+    
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          icon: Icon(Icons.arrow_back, color: textColor),
           onPressed: () => Navigator.pop(context),
         ),
         title: Row(
@@ -261,7 +267,7 @@ class _AIChatPageState extends State<AIChatPage> {
               child: Text(
                 _currentNote != null ? _currentNote!.title : "AI Assistant",
                 style: GoogleFonts.poppins(
-                  color: AppColors.textPrimary,
+                  color: textColor,
                   fontWeight: FontWeight.bold,
                   fontSize: 20,
                 ),
@@ -294,10 +300,10 @@ class _AIChatPageState extends State<AIChatPage> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: cardColor,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
                   blurRadius: 10,
                   offset: const Offset(0, -5),
                 ),
@@ -309,15 +315,16 @@ class _AIChatPageState extends State<AIChatPage> {
                   Expanded(
                     child: Container(
                       decoration: BoxDecoration(
-                        color: AppColors.background,
+                        color: theme.colorScheme.surface,
                         borderRadius: BorderRadius.circular(24),
                       ),
                       child: TextField(
                         controller: _messageController,
+                        style: GoogleFonts.poppins(color: textColor),
                         decoration: InputDecoration(
                           hintText: "Type your message...",
                           hintStyle: GoogleFonts.poppins(
-                            color: AppColors.textSecondary,
+                            color: theme.colorScheme.onSurface.withOpacity(0.6),
                           ),
                           border: InputBorder.none,
                           contentPadding: const EdgeInsets.symmetric(
@@ -401,7 +408,9 @@ class _ChatBubble extends StatelessWidget {
               ? AppColors.primary
               : message.isSystem
                   ? AppColors.primary.withOpacity(0.1)
-                  : Colors.white,
+                  : (Theme.of(context).brightness == Brightness.dark 
+                      ? Theme.of(context).colorScheme.surface 
+                      : Colors.white),
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(20),
             topRight: const Radius.circular(20),
@@ -413,7 +422,7 @@ class _ChatBubble extends StatelessWidget {
               : null,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.3 : 0.05),
               blurRadius: 10,
               offset: const Offset(0, 5),
             ),
@@ -429,7 +438,7 @@ class _ChatBubble extends StatelessWidget {
                     ? Colors.white 
                     : message.isSystem
                         ? AppColors.primary
-                        : AppColors.textPrimary,
+                        : Theme.of(context).colorScheme.onSurface,
                 fontSize: message.isSystem ? 12 : 14,
                 height: 1.5,
                 fontStyle: message.isSystem ? FontStyle.italic : FontStyle.normal,
@@ -441,7 +450,7 @@ class _ChatBubble extends StatelessWidget {
               style: GoogleFonts.poppins(
                 color: message.isUser
                     ? Colors.white.withOpacity(0.7)
-                    : AppColors.textLight,
+                    : Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                 fontSize: 10,
               ),
             ),

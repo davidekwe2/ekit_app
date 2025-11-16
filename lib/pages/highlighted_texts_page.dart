@@ -11,6 +11,10 @@ class HighlightedTextsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final allHighlights = <_HighlightItem>[];
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor = theme.colorScheme.onSurface;
+    final backgroundColor = theme.scaffoldBackgroundColor;
     
     for (final note in AppStore.notes) {
       for (final highlight in note.highlights) {
@@ -25,18 +29,18 @@ class HighlightedTextsPage extends StatelessWidget {
     allHighlights.sort((a, b) => b.highlight.createdAt.compareTo(a.highlight.createdAt));
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          icon: Icon(Icons.arrow_back, color: textColor),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           "Highlighted Texts",
           style: GoogleFonts.poppins(
-            color: AppColors.textPrimary,
+            color: textColor,
             fontWeight: FontWeight.bold,
             fontSize: 20,
           ),
@@ -50,14 +54,14 @@ class HighlightedTextsPage extends StatelessWidget {
                   Icon(
                     Icons.highlight_off,
                     size: 80,
-                    color: AppColors.textLight,
+                    color: theme.colorScheme.onSurface.withOpacity(0.5),
                   ),
                   const SizedBox(height: 16),
                   Text(
                     "No highlights yet",
                     style: GoogleFonts.poppins(
                       fontSize: 20,
-                      color: AppColors.textSecondary,
+                      color: textColor,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -66,7 +70,7 @@ class HighlightedTextsPage extends StatelessWidget {
                     "Select text in a note to highlight it!",
                     style: GoogleFonts.poppins(
                       fontSize: 14,
-                      color: AppColors.textLight,
+                      color: theme.colorScheme.onSurface.withOpacity(0.6),
                     ),
                   ),
                 ],
@@ -114,11 +118,11 @@ class _HighlightCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.3 : 0.05),
               blurRadius: 10,
               offset: const Offset(0, 5),
             ),
@@ -136,7 +140,7 @@ class _HighlightCard extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -186,7 +190,7 @@ class _HighlightCard extends StatelessWidget {
                       item.highlight.text,
                       style: GoogleFonts.poppins(
                         fontSize: 14,
-                        color: AppColors.textPrimary,
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontStyle: FontStyle.italic,
                         height: 1.5,
                       ),
@@ -202,7 +206,7 @@ class _HighlightCard extends StatelessWidget {
               _formatDate(item.highlight.createdAt),
               style: GoogleFonts.poppins(
                 fontSize: 12,
-                color: AppColors.textLight,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
               ),
             ),
           ],

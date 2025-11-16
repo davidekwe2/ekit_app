@@ -109,6 +109,12 @@ class _ProfilePageState extends State<ProfilePage> {
       // Update user profile
       await user.updatePhotoURL(downloadUrl);
       await user.reload();
+      
+      // Refresh the current user
+      await FirebaseAuth.instance.currentUser?.reload();
+      
+      // Reload user data to get the updated photo URL
+      await _loadUserData();
 
       setState(() {
         _profileImageUrl = downloadUrl;
@@ -156,14 +162,23 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       await user.updateDisplayName(newUsername);
       await user.reload();
+      
+      // Ensure Firebase updates are synced
+      await FirebaseAuth.instance.currentUser?.reload();
 
-      setState(() => _isLoading = false);
+      // Reload user data to get the updated display name
+      await _loadUserData();
 
+      setState(() {
+        _isLoading = false;
+      });
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Username updated!'),
+            content: Text('Username updated! The change will appear in the drawer after you return to the home page.'),
             backgroundColor: AppColors.success,
+            duration: Duration(seconds: 3),
           ),
         );
       }
