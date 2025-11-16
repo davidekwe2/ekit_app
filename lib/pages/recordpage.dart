@@ -19,6 +19,7 @@ import '../models/category.dart';
 import '../my components/live_waveform.dart';
 import '../themes/colors.dart';
 import '../services/gemini_service.dart';
+import '../services/gemini_live_service.dart';
 import 'note_detail_page.dart';
 
 class RecordPage extends StatefulWidget {
@@ -73,9 +74,13 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
   String? _aiTranslation;
   List<String>? _importantPoints;
 
-  // Writer selection (Writer 1 = Google Cloud TTS, Writer 2 = Gemini)
+  // Writer selection (Writer 1 = Google Cloud TTS, Writer 2 = Gemini Live)
   int _selectedWriter = 1; // Default to Writer 1
   bool _isProcessingWithGemini = false;
+
+  // Gemini Live streaming
+  GeminiLiveService? _geminiLive;
+  StreamSubscription<String>? _geminiLiveSub;
 
   static const _rate = 16000;
   static const _keyAssetPath = 'lib/assets/keys/stt_service_account.json';
@@ -99,6 +104,8 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
     _recStat.cancel();
     _playStat.cancel();
     _durationTimer?.cancel();
+    _geminiLiveSub?.cancel();
+    _geminiLive?.disconnect();
     _rec.stop();
     _player.stop();
     _textCtl.dispose();
@@ -133,7 +140,16 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
     // mic bytes -> buffer, STT stream, and waveform level
     _micSub = _rec.audioStream.listen((bytes) {
       _buffer.add(bytes);
-      _sttIn?.add(bytes);
+      
+      // Route audio based on selected writer
+      if (_selectedWriter == 1) {
+        // Writer 1: Google Cloud TTS
+        _sttIn?.add(bytes);
+      } else if (_selectedWriter == 2 && _geminiLive != null && _geminiLive!.isConnected) {
+        // Writer 2: Gemini Live streaming
+        _geminiLive!.sendAudioChunk(bytes);
+      }
+      
       if (_playOn) _player.writeChunk(bytes);
 
       // ---- mic level (dBFS -> 0..1) ----
