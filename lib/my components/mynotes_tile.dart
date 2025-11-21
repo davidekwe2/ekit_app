@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../features/storage/store.dart';
 import '../models/note.dart';
+import '../services/firestore_service.dart';
 
 class MyNotesTile extends StatelessWidget {
   final Note note;
@@ -18,7 +19,15 @@ class MyNotesTile extends StatelessWidget {
         color: Colors.red,
         child: const Icon(Icons.delete, color: Colors.white),
       ),
-      onDismissed: (_) => AppStore.removeNote(note.id),
+      onDismissed: (_) async {
+        AppStore.removeNote(note.id);
+        // Delete from Firestore
+        try {
+          await FirestoreService.deleteNote(note.id);
+        } catch (e) {
+          // Continue even if Firestore delete fails
+        }
+      },
       child: ListTile(
         leading: const Icon(Icons.delete, color: Colors.red), // delete logo left
         title: Text(note.title, maxLines: 1, overflow: TextOverflow.ellipsis),

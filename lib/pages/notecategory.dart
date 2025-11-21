@@ -5,6 +5,8 @@ import '../themes/colors.dart';
 import '../models/category.dart';
 import '../models/note.dart';
 import '../my components/note_tile.dart';
+import '../services/firestore_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'note_detail_page.dart';
 
 class SubjectPage extends StatefulWidget {
@@ -16,11 +18,75 @@ class SubjectPage extends StatefulWidget {
 class _SubjectPageState extends State<SubjectPage> {
   final TextEditingController _ctl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSubjectsFromFirestore();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reload notes from Firestore when page becomes visible to ensure note counts are accurate
+    _reloadNotesIfNeeded();
+  }
+
+  Future<void> _reloadNotesIfNeeded() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      // Reload notes from Firestore to ensure counts are accurate
+      final notes = await FirestoreService.getNotes();
+      AppStore.notes.clear();
+      AppStore.notes.addAll(notes);
+      
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      // If reload fails, just refresh the UI with existing data
+      if (mounted) {
+        setState(() {});
+      }
+    }
+  }
 
   @override
   void dispose() {
     _ctl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadSubjectsFromFirestore() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    if (_isLoading) return;
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final subjects = await FirestoreService.getSubjects();
+      AppStore.subjects.clear();
+      AppStore.subjects.add(Subject(id: 's0', name: 'No Subject', coverIndex: 0));
+      AppStore.subjects.addAll(subjects);
+      
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   void _showAddSubjectDialog() {
@@ -81,7 +147,7 @@ class _SubjectPageState extends State<SubjectPage> {
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -162,11 +228,41 @@ class _SubjectPageState extends State<SubjectPage> {
               child: Text('Cancel', style: GoogleFonts.poppins()),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 if (_formKey.currentState!.validate()) {
-                  AppStore.addSubject(_ctl.text.trim(), icon: selectedIcon);
-                  Navigator.pop(context);
-                  setState(() {});
+                  final subjectId = 's${DateTime.now().microsecondsSinceEpoch}';
+                  final coverIndex = 1 + (DateTime.now().millisecondsSinceEpoch % 8);
+                  
+                  // Create subject object with consistent ID
+                  final subject = Subject(
+                    id: subjectId,
+                    name: _ctl.text.trim(),
+                    coverIndex: coverIndex,
+                    icon: selectedIcon,
+                  );
+                  
+                  // Add to local store
+                  AppStore.subjects.add(subject);
+                  
+                  // Save to Firestore
+                  try {
+                    await FirestoreService.saveSubject(subject);
+                  } catch (e) {
+                    // If save fails, show error but keep in local store
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Subject saved locally. Will sync when online.'),
+                          backgroundColor: AppColors.primary,
+                        ),
+                      );
+                    }
+                  }
+                  
+                  if (mounted) {
+                    Navigator.pop(context);
+                    setState(() {});
+                  }
                 }
               },
               style: ElevatedButton.styleFrom(
@@ -362,16 +458,31 @@ class _SubjectPageState extends State<SubjectPage> {
                             ),
                           ) ?? false;
                         },
-                        onDismissed: (_) {
+                        onDismissed: (_) async {
                           if (!canDelete) return;
                           // Move notes to "No Subject"
                           for (var note in AppStore.notes) {
                             if (note.subject == subject.id) {
-                              AppStore.updateNote(note.copyWith(subject: null));
+                              final updatedNote = note.copyWith(subject: null);
+                              AppStore.updateNote(updatedNote);
+                              // Update in Firestore
+                              try {
+                                await FirestoreService.updateNote(updatedNote);
+                              } catch (e) {
+                                // Continue even if Firestore update fails
+                              }
                             }
                           }
                           AppStore.removeSubject(subject.id);
-                          setState(() {});
+                          // Delete from Firestore
+                          try {
+                            await FirestoreService.deleteSubject(subject.id);
+                          } catch (e) {
+                            // Continue even if Firestore delete fails
+                          }
+                          if (mounted) {
+                            setState(() {});
+                          }
                         },
                         background: Container(
                           alignment: Alignment.centerRight,
@@ -562,8 +673,12 @@ class _SubjectNotesPage extends StatelessWidget {
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (context) => NoteDetailPage(note: note),
+                      PageRouteBuilder(
+                        pageBuilder: (context, animation, secondaryAnimation) => NoteDetailPage(note: note),
+                        transitionDuration: const Duration(milliseconds: 150),
+                        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                          return FadeTransition(opacity: animation, child: child);
+                        },
                       ),
                     );
                   },
