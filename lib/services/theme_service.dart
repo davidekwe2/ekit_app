@@ -1,27 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../themes/colors.dart';
 
 class ThemeService extends ChangeNotifier {
-  static const String _darkModeKey = 'dark_mode';
   bool _isDarkMode = false;
 
   bool get isDarkMode => _isDarkMode;
 
   ThemeService() {
     _loadThemePreference();
+    // Listen to auth state changes to reload theme when user changes
+    FirebaseAuth.instance.authStateChanges().listen((user) {
+      _loadThemePreference();
+    });
+  }
+
+  String _getDarkModeKey() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      return 'dark_mode_${user.uid}';
+    }
+    return 'dark_mode_guest';
   }
 
   Future<void> _loadThemePreference() async {
     final prefs = await SharedPreferences.getInstance();
-    _isDarkMode = prefs.getBool(_darkModeKey) ?? false;
+    final key = _getDarkModeKey();
+    _isDarkMode = prefs.getBool(key) ?? false;
     notifyListeners();
   }
 
   Future<void> toggleTheme() async {
     _isDarkMode = !_isDarkMode;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_darkModeKey, _isDarkMode);
+    final key = _getDarkModeKey();
+    await prefs.setBool(key, _isDarkMode);
     notifyListeners();
   }
 
@@ -29,9 +43,15 @@ class ThemeService extends ChangeNotifier {
     if (_isDarkMode != value) {
       _isDarkMode = value;
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_darkModeKey, _isDarkMode);
+      final key = _getDarkModeKey();
+      await prefs.setBool(key, _isDarkMode);
       notifyListeners();
     }
+  }
+
+  /// Reload theme preference when user changes
+  Future<void> reloadForUser() async {
+    await _loadThemePreference();
   }
 
   ThemeData get lightTheme {

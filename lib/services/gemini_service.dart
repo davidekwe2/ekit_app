@@ -117,10 +117,15 @@ class GeminiService {
     required String userMessage,
     List<Map<String, String>>? conversationHistory,
     String? noteContext,
+    String? responseLanguage,
   }) async {
     final List<Map<String, dynamic>> contents = [];
 
     // 1) Educational "system prompt" as Froggy persona
+    final languageInstruction = responseLanguage != null && responseLanguage != 'English'
+        ? '\n\nIMPORTANT: The user has set their app language to $responseLanguage. You MUST respond in $responseLanguage. All your responses should be in $responseLanguage, not English. Keep the same friendly, quirky Froggy personality, but communicate entirely in $responseLanguage.'
+        : '';
+    
     contents.add({
       'role': 'user',
       'parts': [
@@ -132,7 +137,7 @@ Explain concepts clearly and step-by-step, but in a warm, friendly way.
 Help with homework, notes, and study questions with enthusiasm.
 Use emojis occasionally (especially 🐸) to make responses more engaging.
 If you are unsure about something, say so instead of guessing.
-Keep responses helpful, educational, and slightly quirky - you're Froggy after all!
+Keep responses helpful, educational, and slightly quirky - you're Froggy after all!$languageInstruction
 Now help the student based on the following conversation.
 '''
         }
@@ -173,5 +178,102 @@ Now help the student based on the following conversation.
     });
 
     return _callGemini(contents);
+  }
+
+  /// Generate a concise summary of the note
+  static Future<String> generateSummary(String noteText) async {
+    final contents = [
+      {
+        'role': 'user',
+        'parts': [
+          {
+            'text': '''Please provide a concise and well-structured summary of the following note. 
+Focus on the main ideas, key information, and important details. 
+Keep it clear and easy to understand.
+
+Note content:
+$noteText
+
+Summary:'''
+          }
+        ]
+      }
+    ];
+
+    return _callGemini(contents);
+  }
+
+  /// Translate the note to another language
+  static Future<String> translateNote(String noteText, {String targetLanguage = 'English'}) async {
+    final contents = [
+      {
+        'role': 'user',
+        'parts': [
+          {
+            'text': '''Please translate the following note to $targetLanguage. 
+Maintain the original meaning, tone, and structure. 
+If the note contains technical terms or proper nouns, keep them in their original form when appropriate.
+
+Note content:
+$noteText
+
+Translation:'''
+          }
+        ]
+      }
+    ];
+
+    return _callGemini(contents);
+  }
+
+  /// Extract key points from the note
+  static Future<List<String>> extractKeyPoints(String noteText) async {
+    final contents = [
+      {
+        'role': 'user',
+        'parts': [
+          {
+            'text': '''Please extract the key points from the following note. 
+Return ONLY a numbered or bulleted list of the most important points. 
+Each point should be concise (one sentence or short phrase). 
+Focus on main ideas, conclusions, and actionable items.
+
+Note content:
+$noteText
+
+Key Points:'''
+          }
+        ]
+      }
+    ];
+
+    try {
+      final response = await _callGemini(contents);
+      // Parse the response into a list of key points
+      final lines = response.split('\n').where((line) {
+        final trimmed = line.trim();
+        // Match numbered lists (1., 2., etc.) or bullet points (-, •, etc.)
+        return trimmed.isNotEmpty && 
+               (trimmed.startsWith(RegExp(r'^\d+[\.\)]')) || 
+                trimmed.startsWith('-') || 
+                trimmed.startsWith('•') ||
+                trimmed.startsWith('*'));
+      }).map((line) {
+        // Remove numbering/bullets and clean up
+        return line.replaceFirst(RegExp(r'^[\d\.\)\-\•\*]\s*'), '').trim();
+      }).where((line) => line.isNotEmpty).toList();
+
+      // If parsing failed, return the response as a single item or split by newlines
+      if (lines.isEmpty) {
+        // Try splitting by double newlines or periods
+        final sentences = response.split(RegExp(r'[\.\n]{2,}')).where((s) => s.trim().isNotEmpty).toList();
+        return sentences.isNotEmpty ? sentences : [response];
+      }
+
+      return lines;
+    } catch (e) {
+      // Fallback: return error message as single item
+      return ['Failed to extract key points. Please try again.'];
+    }
   }
 }
