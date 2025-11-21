@@ -109,8 +109,12 @@ class _HighlightCard extends StatelessWidget {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => NoteDetailPage(note: item.note),
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => NoteDetailPage(note: item.note),
+            transitionDuration: const Duration(milliseconds: 150),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
           ),
         );
       },
