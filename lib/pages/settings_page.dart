@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+
 import '../themes/colors.dart';
 import '../services/theme_service.dart';
+import '../services/language_service.dart';
+import '../l10n/app_localizations.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -10,12 +13,15 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final themeService = Provider.of<ThemeService>(context);
+    final languageService = Provider.of<LanguageService>(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    final backgroundColor = isDark ? const Color(0xFF1E1E1E) : AppColors.background;
+
+    final backgroundColor =
+    isDark ? const Color(0xFF1E1E1E) : AppColors.background;
     final cardColor = isDark ? const Color(0xFF2D2D2D) : Colors.white;
     final textColor = isDark ? Colors.white : AppColors.textPrimary;
-    final textSecondaryColor = isDark ? Colors.white70 : AppColors.textSecondary;
+    final textSecondaryColor =
+    isDark ? Colors.white70 : AppColors.textSecondary;
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -27,7 +33,7 @@ class SettingsPage extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Settings',
+          AppLocalizations.of(context)?.settings ?? 'Settings',
           style: GoogleFonts.poppins(
             color: textColor,
             fontWeight: FontWeight.bold,
@@ -38,7 +44,7 @@ class SettingsPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          // Appearance Section
+          // Appearance + Language Section
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -56,7 +62,7 @@ class SettingsPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Appearance',
+                  AppLocalizations.of(context)?.appearance ?? 'Appearance',
                   style: GoogleFonts.poppins(
                     color: textColor,
                     fontWeight: FontWeight.bold,
@@ -64,6 +70,7 @@ class SettingsPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 20),
+                // Dark mode toggle
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -78,7 +85,7 @@ class SettingsPage extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Dark Mode',
+                              AppLocalizations.of(context)?.darkMode ?? 'Dark Mode',
                               style: GoogleFonts.poppins(
                                 color: textColor,
                                 fontWeight: FontWeight.w600,
@@ -86,7 +93,9 @@ class SettingsPage extends StatelessWidget {
                               ),
                             ),
                             Text(
-                              isDark ? 'Dark theme enabled' : 'Light theme enabled',
+                              isDark
+                                  ? (AppLocalizations.of(context)?.darkThemeEnabled ?? 'Dark theme enabled')
+                                  : (AppLocalizations.of(context)?.lightThemeEnabled ?? 'Light theme enabled'),
                               style: GoogleFonts.poppins(
                                 color: textSecondaryColor,
                                 fontSize: 12,
@@ -105,9 +114,56 @@ class SettingsPage extends StatelessWidget {
                     ),
                   ],
                 ),
+                const SizedBox(height: 20),
+                // Language row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.language,
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(width: 16),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              AppLocalizations.of(context)?.language ?? 'Language',
+                              style: GoogleFonts.poppins(
+                                color: textColor,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                              ),
+                            ),
+                            Text(
+                              languageService.getLanguageName(
+                                  languageService.locale),
+                              style: GoogleFonts.poppins(
+                                color: textSecondaryColor,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        Icons.arrow_forward_ios,
+                        color: textColor,
+                        size: 18,
+                      ),
+                      onPressed: () =>
+                          _showLanguageDialog(context, languageService),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
+
           const SizedBox(height: 20),
 
           // About Section
@@ -128,7 +184,7 @@ class SettingsPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'About',
+                  AppLocalizations.of(context)?.about ?? 'About',
                   style: GoogleFonts.poppins(
                     color: textColor,
                     fontWeight: FontWeight.bold,
@@ -138,7 +194,7 @@ class SettingsPage extends StatelessWidget {
                 const SizedBox(height: 16),
                 _SettingsItem(
                   icon: Icons.info_outline,
-                  title: 'App Version',
+                  title: AppLocalizations.of(context)?.appVersion ?? 'App Version',
                   subtitle: '1.0.0',
                   onTap: () {},
                   isDark: isDark,
@@ -146,7 +202,7 @@ class SettingsPage extends StatelessWidget {
                 const Divider(height: 32),
                 _SettingsItem(
                   icon: Icons.description_outlined,
-                  title: 'Terms of Service',
+                  title: AppLocalizations.of(context)?.termsOfService ?? 'Terms of Service',
                   onTap: () {
                     // Navigate to terms page
                   },
@@ -155,7 +211,7 @@ class SettingsPage extends StatelessWidget {
                 const Divider(height: 32),
                 _SettingsItem(
                   icon: Icons.privacy_tip_outlined,
-                  title: 'Privacy Policy',
+                  title: AppLocalizations.of(context)?.privacyPolicy ?? 'Privacy Policy',
                   onTap: () {
                     // Navigate to privacy policy page
                   },
@@ -165,6 +221,56 @@ class SettingsPage extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showLanguageDialog(
+      BuildContext context, LanguageService languageService) {
+    final theme = Theme.of(context);
+    final textColor = theme.colorScheme.onSurface;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape:
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          AppLocalizations.of(context)?.selectLanguage ?? 'Select Language',
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.bold,
+            color: textColor,
+          ),
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView(
+            shrinkWrap: true,
+            children: LanguageService.supportedLocales.map((locale) {
+              final isSelected = languageService.locale == locale;
+              return ListTile(
+                title: Text(
+                  languageService.getLanguageName(locale),
+                  style: GoogleFonts.poppins(
+                    color: textColor,
+                    fontWeight:
+                    isSelected ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+                trailing: isSelected
+                    ? const Icon(Icons.check, color: AppColors.primary)
+                    : null,
+                onTap: () {
+                  languageService.setLanguage(locale);
+                  Navigator.pop(context);
+                },
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
       ),
     );
   }
@@ -188,7 +294,8 @@ class _SettingsItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textColor = isDark ? Colors.white : AppColors.textPrimary;
-    final textSecondaryColor = isDark ? Colors.white70 : AppColors.textSecondary;
+    final textSecondaryColor =
+    isDark ? Colors.white70 : AppColors.textSecondary;
 
     return ListTile(
       contentPadding: EdgeInsets.zero,
@@ -202,16 +309,15 @@ class _SettingsItem extends StatelessWidget {
       ),
       subtitle: subtitle != null
           ? Text(
-              subtitle!,
-              style: GoogleFonts.poppins(
-                color: textSecondaryColor,
-                fontSize: 12,
-              ),
-            )
+        subtitle!,
+        style: GoogleFonts.poppins(
+          color: textSecondaryColor,
+          fontSize: 12,
+        ),
+      )
           : null,
       trailing: const Icon(Icons.chevron_right),
       onTap: onTap,
     );
   }
 }
-

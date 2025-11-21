@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../themes/colors.dart';
 import '../features/storage/store.dart';
+import '../l10n/app_localizations.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -256,7 +257,7 @@ class _ProfilePageState extends State<ProfilePage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Profile',
+          AppLocalizations.of(context)?.profile ?? 'Profile',
           style: GoogleFonts.poppins(
             color: textColor,
             fontWeight: FontWeight.bold,
@@ -358,7 +359,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Personal Information',
+                    AppLocalizations.of(context)?.personalInformation ?? 'Personal Information',
                     style: GoogleFonts.poppins(
                       color: textColor,
                       fontWeight: FontWeight.bold,
@@ -371,7 +372,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   TextField(
                     controller: _usernameController,
                     decoration: InputDecoration(
-                      labelText: 'Username',
+                      labelText: AppLocalizations.of(context)?.username ?? 'Username',
                       labelStyle: GoogleFonts.poppins(color: textSecondaryColor),
                       hintText: 'Enter your username',
                       hintStyle: GoogleFonts.poppins(color: textSecondaryColor),
@@ -390,7 +391,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   TextField(
                     enabled: false,
                     decoration: InputDecoration(
-                      labelText: 'Email',
+                      labelText: AppLocalizations.of(context)?.email ?? 'Email',
                       labelStyle: GoogleFonts.poppins(color: textSecondaryColor),
                       hintText: email,
                       hintStyle: GoogleFonts.poppins(color: textSecondaryColor),
@@ -428,7 +429,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               ),
                             )
                           : Text(
-                              'Update Username',
+                              AppLocalizations.of(context)?.updateUsername ?? 'Update Username',
                               style: GoogleFonts.poppins(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 16,
@@ -459,7 +460,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Your Stats',
+                    AppLocalizations.of(context)?.yourStats ?? 'Your Stats',
                     style: GoogleFonts.poppins(
                       color: textColor,
                       fontWeight: FontWeight.bold,
@@ -472,7 +473,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       Expanded(
                         child: _StatCard(
                           icon: Icons.note,
-                          label: 'Notes Written',
+                          label: AppLocalizations.of(context)?.notesWritten ?? 'Notes Written',
                           value: notesCount.toString(),
                           color: AppColors.primary,
                           isDark: isDark,
@@ -482,7 +483,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       Expanded(
                         child: _StatCard(
                           icon: Icons.school,
-                          label: 'Subjects',
+                          label: AppLocalizations.of(context)?.subjects ?? 'Subjects',
                           value: AppStore.subjects.length.toString(),
                           color: AppColors.accent,
                           isDark: isDark,

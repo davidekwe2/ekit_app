@@ -6,6 +6,7 @@ import '../models/category.dart';
 import '../models/note.dart';
 import '../my components/note_tile.dart';
 import '../services/firestore_service.dart';
+import '../l10n/app_localizations.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'note_detail_page.dart';
 
@@ -111,7 +112,7 @@ class _SubjectPageState extends State<SubjectPage> {
           shape:
           RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text(
-            'Create New Subject',
+            AppLocalizations.of(context)?.createSubject ?? 'Create New Subject',
             style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
           ),
           content: SingleChildScrollView(
@@ -235,7 +236,7 @@ class _SubjectPageState extends State<SubjectPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('Cancel', style: GoogleFonts.poppins()),
+              child: Text(AppLocalizations.of(context)?.cancel ?? 'Cancel', style: GoogleFonts.poppins()),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -282,7 +283,7 @@ class _SubjectPageState extends State<SubjectPage> {
                 ),
               ),
               child: Text(
-                'Create',
+                AppLocalizations.of(context)?.create ?? 'Create',
                 style: GoogleFonts.poppins(color: Colors.white),
               ),
             ),
@@ -310,7 +311,7 @@ class _SubjectPageState extends State<SubjectPage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Subjects',
+          AppLocalizations.of(context)?.subjects ?? 'Subjects',
           style: GoogleFonts.poppins(
             color: textColor,
             fontWeight: FontWeight.bold,
@@ -337,7 +338,7 @@ class _SubjectPageState extends State<SubjectPage> {
         backgroundColor: AppColors.primary,
         icon: const Icon(Icons.add, color: Colors.white),
         label: Text(
-          'New Subject',
+          AppLocalizations.of(context)?.newSubject ?? 'New Subject',
           style: GoogleFonts.poppins(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -364,7 +365,7 @@ class _SubjectPageState extends State<SubjectPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            'No subjects yet',
+            AppLocalizations.of(context)?.noSubjectsYet ?? 'No subjects yet',
             style: GoogleFonts.poppins(
               fontSize: 20,
               color: textColor,
@@ -373,7 +374,7 @@ class _SubjectPageState extends State<SubjectPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Create your first subject to organize your notes!',
+            AppLocalizations.of(context)?.noSubjectsYet ?? 'Create your first subject to organize your notes!',
             style: GoogleFonts.poppins(
               fontSize: 14,
               color: secondaryTextColor,
@@ -384,7 +385,7 @@ class _SubjectPageState extends State<SubjectPage> {
           ElevatedButton.icon(
             onPressed: _showAddSubjectDialog,
             icon: const Icon(Icons.add),
-            label: Text('Create Subject', style: GoogleFonts.poppins()),
+            label: Text(AppLocalizations.of(context)?.createSubject ?? 'Create Subject', style: GoogleFonts.poppins()),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
@@ -433,7 +434,7 @@ class _SubjectPageState extends State<SubjectPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Organize Your Notes',
+                      AppLocalizations.of(context)?.organizeYourNotes ?? 'Organize Your Notes',
                       style: GoogleFonts.poppins(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -486,7 +487,7 @@ class _SubjectPageState extends State<SubjectPage> {
               controller: _searchController,
               style: GoogleFonts.poppins(color: textColor),
               decoration: InputDecoration(
-                hintText: 'Search subjects...',
+                hintText: AppLocalizations.of(context)?.searchSubjects ?? 'Search subjects...',
                 hintStyle: GoogleFonts.poppins(
                   color: textColor.withOpacity(0.5),
                   fontSize: 16,
@@ -554,7 +555,7 @@ class _SubjectPageState extends State<SubjectPage> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'No subjects found',
+                        AppLocalizations.of(context)?.noSubjectsYet ?? 'No subjects found',
                         style: GoogleFonts.poppins(
                           fontSize: 18,
                           color: textColor,
@@ -610,7 +611,7 @@ class _SubjectPageState extends State<SubjectPage> {
                               onPressed: () =>
                                   Navigator.pop(context, false),
                               child: Text(
-                                'Cancel',
+                                AppLocalizations.of(context)?.cancel ?? 'Cancel',
                                 style: GoogleFonts.poppins(),
                               ),
                             ),

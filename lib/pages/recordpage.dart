@@ -20,6 +20,7 @@ import '../themes/colors.dart';
 import '../services/gemini_service.dart'; // kept if used elsewhere
 import '../services/gemini_live_service.dart';
 import '../services/firestore_service.dart';
+import '../l10n/app_localizations.dart';
 import 'note_detail_page.dart'; // kept if you navigate here elsewhere
 
 class RecordPage extends StatefulWidget {
@@ -574,7 +575,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                 borderRadius: BorderRadius.circular(20),
               ),
               title: Text(
-                'Save Note',
+                AppLocalizations.of(context)?.saveNote ?? 'Save Note',
                 style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
               ),
               content: SizedBox(
@@ -586,7 +587,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                     children: [
                       // Note name field
                       Text(
-                        'Note Name',
+                        AppLocalizations.of(context)?.noteName ?? 'Note Name',
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -617,7 +618,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                       const SizedBox(height: 20),
                       // Subject selection
                       Text(
-                        'Select Subject',
+                        AppLocalizations.of(context)?.selectSubject ?? 'Select Subject',
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -750,7 +751,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                     ),
                   ),
                   child: Text(
-                    'Save',
+                    AppLocalizations.of(context)?.save ?? 'Save',
                     style: GoogleFonts.poppins(color: Colors.white),
                   ),
                 ),
@@ -783,7 +784,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
             borderRadius: BorderRadius.circular(20),
           ),
           title: Text(
-            'Create Subject',
+            AppLocalizations.of(context)?.createSubject ?? 'Create Subject',
             style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
           ),
           content: SingleChildScrollView(
@@ -795,7 +796,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                   controller: controller,
                   autofocus: true,
                   decoration: InputDecoration(
-                    hintText: 'Subject name',
+                    hintText: AppLocalizations.of(context)?.subjectName ?? 'Subject name',
                     prefixIcon: Icon(
                       selectedIcon ?? Icons.school,
                       color: AppColors.primary,
@@ -1005,7 +1006,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'New Recording',
+          AppLocalizations.of(context)?.newRecording ?? 'New Recording',
           style: GoogleFonts.poppins(
             color: textColor,
             fontWeight: FontWeight.bold,
@@ -1036,7 +1037,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                       color: AppColors.primary, size: 22),
                   const SizedBox(width: 12),
                   Text(
-                    'Writer:',
+                    AppLocalizations.of(context)?.writer ?? 'Writer:',
                     style: GoogleFonts.poppins(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
@@ -1049,8 +1050,8 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                       children: [
                         Expanded(
                           child: _WriterButton(
-                            label: 'Writer 1',
-                            subtitle: 'Google Cloud STT',
+                            label: AppLocalizations.of(context)?.writer1 ?? 'Writer 1',
+                            subtitle: AppLocalizations.of(context)?.googleCloudSTT ?? 'Google Cloud STT',
                             isSelected: _selectedWriter == 1,
                             onTap: (_recOn || _isPaused)
                                 ? null
@@ -1064,8 +1065,8 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                         const SizedBox(width: 8),
                         Expanded(
                           child: _WriterButton(
-                            label: 'Writer 2',
-                            subtitle: 'Gemini AI',
+                            label: AppLocalizations.of(context)?.writer2 ?? 'Writer 2',
+                            subtitle: AppLocalizations.of(context)?.geminiAI ?? 'Gemini AI',
                             isSelected: _selectedWriter == 2,
                             onTap: (_recOn || _isPaused)
                                 ? null
@@ -1304,7 +1305,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                                       ? (_isProcessingWithGemini
                                       ? 'Processing with Gemini...'
                                       : 'Taking notes...')
-                                      : 'Ready to record',
+                                      : (AppLocalizations.of(context)?.readyToRecord ?? 'Ready to record'),
                                   style: GoogleFonts.poppins(
                                     color: _recognizing
                                         ? AppColors.primary
@@ -1422,7 +1423,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                   letterSpacing: 0.2,
                 ),
                 decoration: InputDecoration(
-                  hintText: 'Press record to start taking notes',
+                  hintText: AppLocalizations.of(context)?.pressRecordToStart ?? 'Press record to start taking notes',
                   hintStyle: GoogleFonts.poppins(
                     color: textColor.withOpacity(0.5),
                     fontSize: 15,
@@ -1506,7 +1507,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
               children: [
                 _ControlButton(
                   icon: Icons.clear,
-                  label: 'Clear',
+                  label: AppLocalizations.of(context)?.clear ?? 'Clear',
                   color: AppColors.textSecondary,
                   onTap: _recOn || _isPaused
                       ? null
@@ -1526,14 +1527,14 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                 if (_recOn && !_isPaused)
                   _ControlButton(
                     icon: Icons.pause,
-                    label: 'Pause',
+                    label: AppLocalizations.of(context)?.pause ?? 'Pause',
                     color: AppColors.warning,
                     onTap: _pause,
                   ),
                 if (_isPaused) ...[
                   _ControlButton(
                     icon: Icons.play_arrow,
-                    label: 'Resume',
+                    label: AppLocalizations.of(context)?.resume ?? 'Resume',
                     color: AppColors.primary,
                     onTap: _resume,
                     isPrimary: true,
@@ -1548,7 +1549,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                 if (!_isPaused && !_recOn)
                   _ControlButton(
                     icon: Icons.mic,
-                    label: 'Record',
+                    label: AppLocalizations.of(context)?.record ?? 'Record',
                     color: AppColors.primary,
                     onTap: _start,
                     isPrimary: true,
@@ -1556,7 +1557,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                 if (_recOn && !_isPaused)
                   _ControlButton(
                     icon: Icons.stop,
-                    label: 'Stop',
+                    label: AppLocalizations.of(context)?.stop ?? 'Stop',
                     color: AppColors.error,
                     onTap: _stop,
                   ),
