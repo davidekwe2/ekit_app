@@ -20,6 +20,7 @@ import '../my components/live_waveform.dart';
 import '../themes/colors.dart';
 import '../services/gemini_service.dart';
 import '../services/gemini_live_service.dart';
+import '../services/firestore_service.dart';
 import 'note_detail_page.dart';
 
 class RecordPage extends StatefulWidget {
@@ -529,7 +530,22 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
       importantPoints: _importantPoints,
     );
 
+    // Save to both local store and Firestore
     AppStore.addNote(note);
+    try {
+      await FirestoreService.saveNote(note);
+    } catch (e) {
+      // If Firestore save fails, still keep it in local store
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Note saved locally. Will sync when online.'),
+            backgroundColor: AppColors.primary,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
 
     if (mounted) {
       // Navigate to home page to show the new note in recent notes
@@ -840,11 +856,40 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
               child: Text('Cancel', style: GoogleFonts.poppins()),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 if (controller.text.trim().isNotEmpty) {
-                  AppStore.addSubject(controller.text.trim(), icon: selectedIcon);
-                  final newSubject = AppStore.subjects.last;
-                  Navigator.pop(context, newSubject.id);
+                  final subjectId = 's${DateTime.now().microsecondsSinceEpoch}';
+                  final coverIndex = 1 + (DateTime.now().millisecondsSinceEpoch % 8);
+                  
+                  // Create subject object with consistent ID
+                  final subject = Subject(
+                    id: subjectId,
+                    name: controller.text.trim(),
+                    coverIndex: coverIndex,
+                    icon: selectedIcon,
+                  );
+                  
+                  // Add to local store
+                  AppStore.subjects.add(subject);
+                  
+                  // Save to Firestore
+                  try {
+                    await FirestoreService.saveSubject(subject);
+                  } catch (e) {
+                    // If save fails, show error but keep in local store
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Subject saved locally. Will sync when online.'),
+                          backgroundColor: AppColors.primary,
+                        ),
+                      );
+                    }
+                  }
+                  
+                  if (mounted) {
+                    Navigator.pop(context, subject.id);
+                  }
                 }
               },
               style: ElevatedButton.styleFrom(
