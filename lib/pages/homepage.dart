@@ -33,6 +33,8 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   StreamSubscription? _authStateSubscription;
   bool _isLoadingNotes = false;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -111,12 +113,31 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _authStateSubscription?.cancel();
+    _searchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final notes = AppStore.notes;
+    final allNotes = AppStore.notes;
+    // Filter notes based on search query
+    final notes = _searchQuery.isEmpty
+        ? allNotes
+        : allNotes.where((note) {
+            final query = _searchQuery.toLowerCase();
+            return note.title.toLowerCase().contains(query) ||
+                note.transcript.toLowerCase().contains(query) ||
+                (note.subject != null &&
+                    AppStore.subjects
+                        .where((s) => s.id == note.subject)
+                        .isNotEmpty &&
+                    AppStore.subjects
+                        .firstWhere((s) => s.id == note.subject,
+                            orElse: () => AppStore.subjects.first)
+                        .name
+                        .toLowerCase()
+                        .contains(query));
+          }).toList();
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final textColor = theme.colorScheme.onSurface;
@@ -146,239 +167,250 @@ class _HomePageState extends State<HomePage> {
       ),
       drawer: _buildDrawer(context),
       body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () async {
-            await _loadNotesFromFirestore();
-          },
-          child: CustomScrollView(
-            slivers: [
-              SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 20),
-                    // Search bar
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: cardColor,
+        child: Column(
+          children: [
+            // Fixed section: Search bar and Start Recording card
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 20),
+                // Search bar
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: TextField(
+                      controller: _searchController,
+                      style: GoogleFonts.poppins(color: textColor),
+                      decoration: InputDecoration(
+                        hintText: "Search through your notes 📚",
+                        hintStyle: GoogleFonts.poppins(
+                          color: theme.colorScheme.onSurface.withOpacity(0.6),
+                          fontSize: 16,
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search,
+                          color: AppColors.primary,
+                        ),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: Icon(
+                                  Icons.clear,
+                                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                                ),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() {
+                                    _searchQuery = '';
+                                  });
+                                },
+                              )
+                            : null,
+                        border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 5),
-                            ),
-                          ],
+                          borderSide: BorderSide.none,
                         ),
-                        child: TextField(
-                          style: GoogleFonts.poppins(color: textColor),
-                          decoration: InputDecoration(
-                            hintText: "Search through your notes 📚",
-                            hintStyle: GoogleFonts.poppins(
-                              color: theme.colorScheme.onSurface.withOpacity(0.6),
-                              fontSize: 16,
-                            ),
-                            prefixIcon: Icon(
-                              Icons.search,
-                              color: AppColors.primary,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide.none,
-                            ),
-                            filled: true,
-                            fillColor: cardColor,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 16,
-                            ),
+                        filled: true,
+                        fillColor: cardColor,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 16,
+                        ),
+                      ),
+                      onChanged: (value) {
+                        setState(() {
+                          _searchQuery = value;
+                        });
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                
+                // Record card - Always visible
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.pushNamed(context, '/record');
+                    },
+                    borderRadius: BorderRadius.circular(24),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: AppColors.primaryGradient,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withOpacity(0.3),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
                           ),
-                        ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                    
-                    // Record card
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: AppColors.primaryGradient,
-                          borderRadius: BorderRadius.circular(24),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withOpacity(0.3),
-                              blurRadius: 20,
-                              offset: const Offset(0, 10),
-                            ),
-                          ],
-                        ),
-                        padding: const EdgeInsets.all(24),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    "Start Recording",
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    "Turn your speech into notes instantly",
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 14,
-                                      color: Colors.white.withOpacity(0.9),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  ElevatedButton.icon(
-                                    onPressed: () {
-                                      Navigator.pushNamed(context, '/record');
-                                    },
-                                    icon: const Icon(Icons.mic, color: Colors.white),
-                                    label: Text(
-                                      "Start Recording",
-                                      style: GoogleFonts.poppins(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.white.withOpacity(0.2),
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 24,
-                                        vertical: 12,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Image.asset(
-                              "lib/assets/images/frog (1).png",
-                              height: 120,
-                              fit: BoxFit.contain,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    
-                    // Recent notes header
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      padding: const EdgeInsets.all(20),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            "Recent Notes",
-                            style: GoogleFonts.poppins(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: textColor,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Start Recording",
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  "Turn speech into notes",
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    color: Colors.white.withOpacity(0.85),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pushNamed(context, '/categories');
-                            },
-                            child: Text(
-                              "View All",
-                              style: GoogleFonts.poppins(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 16,
+                          const SizedBox(width: 12),
+                          // Play/Record button indicator
+                          Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.25),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.4),
+                                width: 2,
                               ),
                             ),
+                            child: const Icon(
+                              Icons.play_arrow_rounded,
+                              color: Colors.white,
+                              size: 32,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          // Frog illustration
+                          Image.asset(
+                            "lib/assets/images/frog (1).png",
+                            height: 100,
+                            fit: BoxFit.contain,
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
-                  ],
-                ),
-              ),
-              
-              // Notes list
-              if (notes.isEmpty)
-                SliverFillRemaining(
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.note_add_outlined,
-                          size: 80,
-                          color: theme.colorScheme.onSurface.withOpacity(0.5),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          "No notes yet",
-                          style: GoogleFonts.poppins(
-                            fontSize: 20,
-                            color: textColor,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          "Start recording to create your first note!",
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            color: theme.colorScheme.onSurface.withOpacity(0.6),
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
-                )
-              else
-                SliverPadding(
+                ),
+                const SizedBox(height: 24),
+                
+                // Recent notes header - Fixed
+                Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final note = notes[index];
-                        return NoteTile(
-                          note: note,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              PageRouteBuilder(
-                                pageBuilder: (context, animation, secondaryAnimation) => NoteDetailPage(note: note),
-                                transitionDuration: const Duration(milliseconds: 150),
-                                transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                                  return FadeTransition(opacity: animation, child: child);
-                                },
-                              ),
-                            );
-                          },
-                        );
-                      },
-                      childCount: notes.length,
-                    ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Recent Notes",
+                        style: GoogleFonts.poppins(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/categories');
+                        },
+                        child: Text(
+                          "View All",
+                          style: GoogleFonts.poppins(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              
-              const SliverToBoxAdapter(
-                child: SizedBox(height: 20),
+                const SizedBox(height: 16),
+              ],
+            ),
+            
+            // Scrollable section: Notes list only
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  await _loadNotesFromFirestore();
+                },
+                child: notes.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.note_add_outlined,
+                              size: 80,
+                              color: theme.colorScheme.onSurface.withOpacity(0.5),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              "No notes yet",
+                              style: GoogleFonts.poppins(
+                                fontSize: 20,
+                                color: textColor,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              "Start recording to create your first note!",
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                color: theme.colorScheme.onSurface.withOpacity(0.6),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        itemCount: notes.length,
+                        itemBuilder: (context, index) {
+                          final note = notes[index];
+                          return NoteTile(
+                            note: note,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                PageRouteBuilder(
+                                  pageBuilder: (context, animation, secondaryAnimation) => NoteDetailPage(note: note),
+                                  transitionDuration: const Duration(milliseconds: 150),
+                                  transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                                    return FadeTransition(opacity: animation, child: child);
+                                  },
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

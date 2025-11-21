@@ -75,24 +75,29 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'AI Actions',
-              style: GoogleFonts.poppins(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
+      builder: (context) {
+        final theme = Theme.of(context);
+        final cardColor = theme.cardColor;
+        final textColor = theme.colorScheme.onSurface;
+        
+        return Container(
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'AI Actions',
+                style: GoogleFonts.poppins(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
               ),
-            ),
             const SizedBox(height: 24),
             _AIOption(
               icon: Icons.summarize,
@@ -124,7 +129,8 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
             const SizedBox(height: 16),
           ],
         ),
-      ),
+      );
+      },
     );
   }
 
@@ -195,19 +201,25 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor = theme.colorScheme.onSurface;
+    final backgroundColor = theme.scaffoldBackgroundColor;
+    final cardColor = theme.cardColor;
+    
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          icon: Icon(Icons.arrow_back, color: textColor),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           _note.title,
           style: GoogleFonts.poppins(
-            color: AppColors.textPrimary,
+            color: textColor,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -363,11 +375,11 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cardColor,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 5),
                   ),
@@ -378,7 +390,7 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
                 style: GoogleFonts.poppins(
                   fontSize: 16,
                   height: 1.6,
-                  color: AppColors.textPrimary,
+                  color: textColor,
                 ),
                 onSelectionChanged: (selection, cause) {
                   setState(() {
@@ -403,7 +415,7 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
                 style: GoogleFonts.poppins(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+                  color: textColor,
                 ),
               ),
               const SizedBox(height: 16),
@@ -529,20 +541,23 @@ class _AIOption extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   Text(
                     subtitle,
                     style: GoogleFonts.poppins(
                       fontSize: 12,
-                      color: AppColors.textSecondary,
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                     ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: AppColors.textLight),
+            Icon(
+              Icons.chevron_right,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+            ),
           ],
         ),
       ),
@@ -594,7 +609,7 @@ class _AIResultCard extends StatelessWidget {
             content,
             style: GoogleFonts.poppins(
               fontSize: 14,
-              color: AppColors.textPrimary,
+              color: Theme.of(context).colorScheme.onSurface,
               height: 1.5,
             ),
           ),
@@ -655,7 +670,7 @@ class _ExpandableCommentsSectionState extends State<_ExpandableCommentsSection> 
                       style: GoogleFonts.poppins(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                   ),
