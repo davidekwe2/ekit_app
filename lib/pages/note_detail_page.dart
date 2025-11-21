@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/note.dart';
 import '../themes/colors.dart';
 import '../features/storage/store.dart';
+import '../services/firestore_service.dart';
 import 'ai_chat_page.dart';
 import 'dart:math';
 
@@ -54,6 +55,10 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
         if (index != -1) {
           AppStore.notes[index] = _note;
         }
+        // Update in Firestore
+        FirestoreService.updateNote(_note).catchError((e) {
+          // Continue even if Firestore update fails
+        });
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -130,6 +135,10 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
       _note = _note.copyWith(aiSummary: summary);
       // Update in store
       AppStore.updateNote(_note);
+      // Update in Firestore
+      FirestoreService.updateNote(_note).catchError((e) {
+        // Continue even if Firestore update fails
+      });
     });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -146,6 +155,10 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
       _note = _note.copyWith(aiTranslation: translation);
       // Update in store
       AppStore.updateNote(_note);
+      // Update in Firestore
+      FirestoreService.updateNote(_note).catchError((e) {
+        // Continue even if Firestore update fails
+      });
     });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -166,6 +179,10 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
       _note = _note.copyWith(importantPoints: points);
       // Update in store
       AppStore.updateNote(_note);
+      // Update in Firestore
+      FirestoreService.updateNote(_note).catchError((e) {
+        // Continue even if Firestore update fails
+      });
     });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -270,8 +287,12 @@ class _NoteDetailPageState extends State<NoteDetailPage> {
                 case 'continue_ai':
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => AIChatPage(importedNote: _note),
+                    PageRouteBuilder(
+                      pageBuilder: (context, animation, secondaryAnimation) => AIChatPage(importedNote: _note),
+                      transitionDuration: const Duration(milliseconds: 150),
+                      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                        return FadeTransition(opacity: animation, child: child);
+                      },
                     ),
                   );
                   break;
