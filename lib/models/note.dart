@@ -24,8 +24,10 @@ class Note {
   final DateTime createdAt;
   final List<Highlight> highlights;
   final String? aiSummary;
+  final String? aiSummaryTranslation;
   final String? aiTranslation;
   final List<String>? importantPoints;
+  final List<String>? importantPointsTranslation;
 
   Note({
     required this.id,
@@ -37,8 +39,10 @@ class Note {
     DateTime? createdAt,
     List<Highlight>? highlights,
     this.aiSummary,
+    this.aiSummaryTranslation,
     this.aiTranslation,
     this.importantPoints,
+    this.importantPointsTranslation,
   }) : createdAt = createdAt ?? DateTime.now(),
        highlights = highlights ?? [];
 
@@ -59,8 +63,10 @@ class Note {
     DateTime? createdAt,
     List<Highlight>? highlights,
     String? aiSummary,
+    String? aiSummaryTranslation,
     String? aiTranslation,
     List<String>? importantPoints,
+    List<String>? importantPointsTranslation,
   }) {
     return Note(
       id: id ?? this.id,
@@ -72,8 +78,10 @@ class Note {
       createdAt: createdAt ?? this.createdAt,
       highlights: highlights ?? this.highlights,
       aiSummary: aiSummary ?? this.aiSummary,
+      aiSummaryTranslation: aiSummaryTranslation ?? this.aiSummaryTranslation,
       aiTranslation: aiTranslation ?? this.aiTranslation,
       importantPoints: importantPoints ?? this.importantPoints,
+      importantPointsTranslation: importantPointsTranslation ?? this.importantPointsTranslation,
     );
   }
 }

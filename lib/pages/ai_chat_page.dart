@@ -12,6 +12,9 @@ import '../features/storage/store.dart';
 import '../services/gemini_service.dart';
 import '../services/firestore_service.dart';
 import '../services/chat_session_service.dart';
+import '../services/language_service.dart';
+import '../l10n/app_localizations.dart';
+import 'package:provider/provider.dart';
 import 'homepage.dart';
 
 class AIChatPage extends StatefulWidget {
@@ -105,11 +108,11 @@ class _AIChatPageState extends State<AIChatPage> {
         }
       } else {
         _currentChatId = null;
+        // Generate welcome message in user's language
+        final welcomeMessage = await _generateWelcomeMessage(_currentNote);
         _messages = [
           ChatMessage(
-            text: _currentNote != null
-                ? "Ribbit! 🐸 I've imported your note: '${_currentNote!.title}'. I'm Froggy, your quirky educational AI tutor! I can help you understand it better, answer questions, summarize it, or extract key points. What would you like to know?"
-                : "Ribbit! 🐸 Hi there! I'm Froggy, your quirky and friendly educational AI tutor! I love helping with:\n\n• Understanding concepts and explaining topics\n• Answering homework and study questions\n• Summarizing and analyzing your notes\n• Extracting key points from educational content\n• Study tips and learning strategies\n• Translations for educational purposes\n\nYou can also import a note to discuss it with me. Ready to hop into some learning? What can I help you with today? 🌟",
+            text: welcomeMessage,
             isUser: false,
             timestamp: DateTime.now(),
           ),
@@ -178,12 +181,18 @@ class _AIChatPageState extends State<AIChatPage> {
         noteContext = _currentNote!.transcript;
       }
 
+      // Get current language
+      final languageService = Provider.of<LanguageService>(context, listen: false);
+      final currentLocale = languageService.locale;
+      final languageName = _getLanguageName(currentLocale);
+
       final response = await GeminiService.chatWithGemini(
         userMessage: userMessage,
         conversationHistory: conversationHistory.length > 1
             ? conversationHistory.sublist(0, conversationHistory.length - 1)
             : null,
         noteContext: noteContext,
+        responseLanguage: languageName,
       );
 
       if (!mounted) return;
@@ -236,6 +245,59 @@ class _AIChatPageState extends State<AIChatPage> {
         );
       }
     });
+  }
+
+  String _getLanguageName(Locale locale) {
+    final languageNames = {
+      'en_US': 'English',
+      'es_ES': 'Spanish',
+      'fr_FR': 'French',
+      'de_DE': 'German',
+      'it_IT': 'Italian',
+      'pt_BR': 'Portuguese',
+      'ru_RU': 'Russian',
+      'ar_SA': 'Arabic',
+      'zh_CN': 'Chinese',
+      'ja_JP': 'Japanese',
+      'ko_KR': 'Korean',
+      'hi_IN': 'Hindi',
+      'nl_NL': 'Dutch',
+      'sv_SE': 'Swedish',
+      'pl_PL': 'Polish',
+    };
+    final key = '${locale.languageCode}_${locale.countryCode ?? 'US'}';
+    return languageNames[key] ?? 'English';
+  }
+
+  Future<String> _generateWelcomeMessage(Note? note) async {
+    final languageService = Provider.of<LanguageService>(context, listen: false);
+    final currentLocale = languageService.locale;
+    final languageName = _getLanguageName(currentLocale);
+    
+    if (languageName == 'English') {
+      return note != null
+          ? "Ribbit! 🐸 I've imported your note: '${note.title}'. I'm Froggy, your quirky educational AI tutor! I can help you understand it better, answer questions, summarize it, or extract key points. What would you like to know?"
+          : "Ribbit! 🐸 Hi there! I'm Froggy, your quirky and friendly educational AI tutor! I love helping with:\n\n• Understanding concepts and explaining topics\n• Answering homework and study questions\n• Summarizing and analyzing your notes\n• Extracting key points from educational content\n• Study tips and learning strategies\n• Translations for educational purposes\n\nYou can also import a note to discuss it with me. Ready to hop into some learning? What can I help you with today? 🌟";
+    }
+    
+    // Generate localized welcome message via AI
+    try {
+      final welcomePrompt = note != null
+          ? "Generate a friendly welcome message in $languageName as Froggy, a quirky educational AI tutor. Say that you've imported the note '${note.title}' and can help understand it, answer questions, summarize, or extract key points. Keep it short, friendly, and include the 🐸 emoji. Start with 'Ribbit!'"
+          : "Generate a friendly welcome message in $languageName as Froggy, a quirky and friendly educational AI tutor. Mention that you help with: understanding concepts, homework questions, summarizing notes, extracting key points, study tips, and translations. Keep it warm and engaging, include the 🐸 emoji, and start with 'Ribbit!'";
+      
+      return await GeminiService.chatWithGemini(
+        userMessage: welcomePrompt,
+        conversationHistory: null,
+        noteContext: null,
+        responseLanguage: languageName,
+      );
+    } catch (e) {
+      // Fallback to English if AI generation fails
+      return note != null
+          ? "Ribbit! 🐸 I've imported your note: '${note.title}'. I'm Froggy, your quirky educational AI tutor! I can help you understand it better, answer questions, summarize it, or extract key points. What would you like to know?"
+          : "Ribbit! 🐸 Hi there! I'm Froggy, your quirky and friendly educational AI tutor! I love helping with:\n\n• Understanding concepts and explaining topics\n• Answering homework and study questions\n• Summarizing and analyzing your notes\n• Extracting key points from educational content\n• Study tips and learning strategies\n• Translations for educational purposes\n\nYou can also import a note to discuss it with me. Ready to hop into some learning? What can I help you with today? 🌟";
+    }
   }
 
   Future<void> _saveChatHistory() async {
@@ -321,7 +383,7 @@ class _AIChatPageState extends State<AIChatPage> {
               borderRadius: BorderRadius.circular(20),
             ),
             title: Text(
-              'Chat History',
+              AppLocalizations.of(context)?.chatHistory ?? 'Chat History',
               style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
             ),
             content: SizedBox(
@@ -331,7 +393,7 @@ class _AIChatPageState extends State<AIChatPage> {
                   ? Padding(
                 padding: const EdgeInsets.all(20),
                 child: Text(
-                  'Ribbit! No chat history yet. Start chatting with Froggy to see your conversations here! 🐸',
+                  '${AppLocalizations.of(context)?.noChatHistory ?? 'No chat history yet'}. Start chatting with ${AppLocalizations.of(context)?.froggy ?? 'Froggy'} to see your conversations here! 🐸',
                   style: GoogleFonts.poppins(),
                   textAlign: TextAlign.center,
                 ),
@@ -427,7 +489,7 @@ class _AIChatPageState extends State<AIChatPage> {
                               ),
                             ),
                             content: Text(
-                              'Ribbit! Are you sure you want to delete this chat? 🐸',
+                              AppLocalizations.of(context)?.areYouSureDeleteChat ?? 'Ribbit! Are you sure you want to delete this chat? 🐸',
                               style: GoogleFonts.poppins(),
                             ),
                             actions: [
@@ -597,7 +659,7 @@ class _AIChatPageState extends State<AIChatPage> {
               TextButton(
                 onPressed: () =>
                     Navigator.of(dialogContext).pop(),
-                child: Text('Close',
+                child: Text(AppLocalizations.of(context)?.close ?? 'Close',
                     style: GoogleFonts.poppins()),
               ),
             ],
@@ -650,11 +712,11 @@ class _AIChatPageState extends State<AIChatPage> {
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          'Start New Chat?',
+          AppLocalizations.of(context)?.startNewChat ?? 'Start New Chat?',
           style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
         ),
         content: Text(
-          'Ribbit! This will start a fresh conversation. Your current chat is saved and you can access it from Chat History. Ready to hop into a new topic? 🐸',
+          AppLocalizations.of(context)?.startNewChatMessage ?? 'Ribbit! This will start a fresh conversation. Your current chat is saved and you can access it from Chat History. Ready to hop into a new topic? 🐸',
           style: GoogleFonts.poppins(),
         ),
         actions: [
@@ -668,7 +730,7 @@ class _AIChatPageState extends State<AIChatPage> {
               foregroundColor: AppColors.primary,
             ),
             child: Text(
-              'New Chat',
+              AppLocalizations.of(context)?.newChat ?? 'New Chat',
               style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
             ),
           ),
@@ -679,13 +741,13 @@ class _AIChatPageState extends State<AIChatPage> {
     if (confirm == true && mounted) {
       await ChatSessionService.clearCurrentChat();
 
+      final welcomeMessage = await _generateWelcomeMessage(null);
       setState(() {
         _currentChatId = null;
         _currentNote = null;
         _messages = [
           ChatMessage(
-            text:
-            "Ribbit! 🐸 Hi there! I'm Froggy, your quirky and friendly educational AI tutor! I love helping with:\n\n• Understanding concepts and explaining topics\n• Answering homework and study questions\n• Summarizing and analyzing your notes\n• Extracting key points from educational content\n• Study tips and learning strategies\n• Translations for educational purposes\n\nYou can also import a note to discuss it with me. Ready to hop into some learning? What can I help you with today? 🌟",
+            text: welcomeMessage,
             isUser: false,
             timestamp: DateTime.now(),
           ),
@@ -712,7 +774,7 @@ class _AIChatPageState extends State<AIChatPage> {
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          'Import Note',
+          AppLocalizations.of(context)?.importNote ?? 'Import Note',
           style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
         ),
         content: SizedBox(
@@ -739,26 +801,28 @@ class _AIChatPageState extends State<AIChatPage> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                onTap: () {
+                onTap: () async {
                   Navigator.pop(context);
-                  setState(() {
-                    _currentNote = note;
-                    _messages = [
-                      ChatMessage(
-                        text:
-                        "Ribbit! 🐸 I've imported your note: '${note.title}'. I'm Froggy, your quirky educational AI tutor! I can help you understand it better, answer questions, summarize it, or extract key points. What would you like to know?",
-                        isUser: false,
-                        timestamp: DateTime.now(),
-                      ),
-                      ChatMessage(
-                        text: "Note content:\n${note.transcript}",
-                        isUser: false,
-                        timestamp: DateTime.now(),
-                        isSystem: true,
-                      ),
-                    ];
-                  });
-                  _scrollToBottom();
+                  final welcomeMessage = await _generateWelcomeMessage(note);
+                  if (mounted) {
+                    setState(() {
+                      _currentNote = note;
+                      _messages = [
+                        ChatMessage(
+                          text: welcomeMessage,
+                          isUser: false,
+                          timestamp: DateTime.now(),
+                        ),
+                        ChatMessage(
+                          text: "Note content:\n${note.transcript}",
+                          isUser: false,
+                          timestamp: DateTime.now(),
+                          isSystem: true,
+                        ),
+                      ];
+                    });
+                    _scrollToBottom();
+                  }
                 },
               );
             },
@@ -842,7 +906,7 @@ class _AIChatPageState extends State<AIChatPage> {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Froggy',
+                AppLocalizations.of(context)?.froggy ?? 'Froggy',
                 style: GoogleFonts.poppins(
                   color: textColor,
                   fontWeight: FontWeight.bold,
@@ -857,7 +921,7 @@ class _AIChatPageState extends State<AIChatPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.history, color: AppColors.primary),
-            tooltip: 'Chat History',
+            tooltip: AppLocalizations.of(context)?.chatHistory ?? 'Chat History',
             onPressed: _showChatHistory,
           ),
           PopupMenuButton<String>(
@@ -873,7 +937,7 @@ class _AIChatPageState extends State<AIChatPage> {
                     const Icon(Icons.note_add,
                         color: AppColors.primary, size: 20),
                     const SizedBox(width: 12),
-                    Text('Import Note', style: GoogleFonts.poppins()),
+                    Text(AppLocalizations.of(context)?.importNote ?? 'Import Note', style: GoogleFonts.poppins()),
                   ],
                 ),
               ),
@@ -884,7 +948,7 @@ class _AIChatPageState extends State<AIChatPage> {
                     const Icon(Icons.chat_bubble_outline,
                         color: AppColors.primary, size: 20),
                     const SizedBox(width: 12),
-                    Text('New Chat', style: GoogleFonts.poppins()),
+                    Text(AppLocalizations.of(context)?.newChat ?? 'New Chat', style: GoogleFonts.poppins()),
                   ],
                 ),
               ),
@@ -895,7 +959,7 @@ class _AIChatPageState extends State<AIChatPage> {
                     const Icon(Icons.history,
                         color: AppColors.primary, size: 20),
                     const SizedBox(width: 12),
-                    Text('Chat History', style: GoogleFonts.poppins()),
+                    Text(AppLocalizations.of(context)?.chatHistory ?? 'Chat History', style: GoogleFonts.poppins()),
                   ],
                 ),
               ),
@@ -1012,7 +1076,7 @@ class _AIChatPageState extends State<AIChatPage> {
                             fontSize: 15,
                           ),
                           decoration: InputDecoration(
-                            hintText: 'Type your message...',
+                            hintText: AppLocalizations.of(context)?.typeAMessage ?? 'Type your message...',
                             hintStyle: GoogleFonts.poppins(
                               color: theme.colorScheme.onSurface
                                   .withOpacity(0.5),

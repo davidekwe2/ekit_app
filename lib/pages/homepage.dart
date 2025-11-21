@@ -22,6 +22,9 @@ import 'profile_page.dart';
 import 'settings_page.dart';
 import '../services/chat_session_service.dart';
 import '../services/firestore_service.dart';
+import '../services/language_service.dart';
+import '../l10n/app_localizations.dart';
+import 'package:provider/provider.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -156,7 +159,7 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
         title: Text(
-          "EKit Notes",
+          AppLocalizations.of(context)?.appName ?? "EKit Notes",
           style: GoogleFonts.poppins(
             color: textColor,
             fontWeight: FontWeight.bold,
@@ -164,6 +167,16 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.language, color: textColor, size: 24),
+            onPressed: () {
+              final languageService = Provider.of<LanguageService>(context, listen: false);
+              _showLanguageDialog(context, languageService);
+            },
+            tooltip: 'Language',
+          ),
+        ],
       ),
       drawer: _buildDrawer(context),
       body: SafeArea(
@@ -193,7 +206,7 @@ class _HomePageState extends State<HomePage> {
                       controller: _searchController,
                       style: GoogleFonts.poppins(color: textColor),
                       decoration: InputDecoration(
-                        hintText: "Search through your notes 📚",
+                        hintText: "${AppLocalizations.of(context)?.searchThroughNotes ?? "Search through your notes"} 📚",
                         hintStyle: GoogleFonts.poppins(
                           color: theme.colorScheme.onSurface.withOpacity(0.6),
                           fontSize: 16,
@@ -261,45 +274,54 @@ class _HomePageState extends State<HomePage> {
                       child: Row(
                         children: [
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            child: Row(
                               children: [
-                                Text(
-                                  "Start Recording",
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        AppLocalizations.of(context)?.speakAndCapture ?? "Speak & Capture",
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 25,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                          height: 1.2,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        AppLocalizations.of(context)?.tapToRecord ?? "Tap to record",
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 15,
+                                          color: Colors.white.withOpacity(0.8),
+                                          height: 1.3,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  "Turn speech into notes",
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 13,
-                                    color: Colors.white.withOpacity(0.85),
+                                const SizedBox(width: 2),
+                                // Play/Record button indicator - closer to text
+                                Container(
+                                  width: 50,
+                                  height: 50,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.25),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.4),
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.play_arrow_rounded,
+                                    color: Colors.white,
+                                    size: 28,
                                   ),
                                 ),
                               ],
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          // Play/Record button indicator
-                          Container(
-                            width: 56,
-                            height: 56,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.25),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.4),
-                                width: 2,
-                              ),
-                            ),
-                            child: const Icon(
-                              Icons.play_arrow_rounded,
-                              color: Colors.white,
-                              size: 32,
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -323,7 +345,7 @@ class _HomePageState extends State<HomePage> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        "Recent Notes",
+                        AppLocalizations.of(context)?.recentNotes ?? "Recent Notes",
                         style: GoogleFonts.poppins(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
@@ -335,7 +357,7 @@ class _HomePageState extends State<HomePage> {
                           Navigator.pushNamed(context, '/categories');
                         },
                         child: Text(
-                          "View All",
+                          AppLocalizations.of(context)?.viewAll ?? "View All",
                           style: GoogleFonts.poppins(
                             color: AppColors.primary,
                             fontWeight: FontWeight.w600,
@@ -416,6 +438,63 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  void _showLanguageDialog(BuildContext context, LanguageService languageService) {
+    try {
+      final theme = Theme.of(context);
+      final textColor = theme.colorScheme.onSurface;
+      final cardColor = theme.cardColor;
+      
+      showDialog(
+        context: context,
+        barrierDismissible: true,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: cardColor,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(
+            AppLocalizations.of(context)?.selectLanguage ?? 'Select Language',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: textColor),
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView(
+              shrinkWrap: true,
+              children: LanguageService.supportedLocales.map((locale) {
+                final isSelected = languageService.locale == locale;
+                return ListTile(
+                  title: Text(
+                    languageService.getLanguageName(locale),
+                    style: GoogleFonts.poppins(
+                      color: textColor,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                  trailing: isSelected
+                      ? const Icon(Icons.check, color: AppColors.primary)
+                      : null,
+                  onTap: () {
+                    languageService.setLanguage(locale);
+                    Navigator.pop(dialogContext);
+                  },
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      // Show error if dialog fails
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error opening language selector: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
   Widget _buildDrawer(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final displayName = user?.displayName ?? 'User';
@@ -459,11 +538,47 @@ class _HomePageState extends State<HomePage> {
                         decoration: BoxDecoration(
                           color: Colors.white,
                           shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white,
+                            width: 2,
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.person,
-                          color: AppColors.primary,
-                          size: 30,
+                        child: ClipOval(
+                          child: user?.photoURL != null && user!.photoURL!.isNotEmpty
+                              ? Image.network(
+                                  user.photoURL!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      color: Colors.white,
+                                      child: const Icon(
+                                        Icons.person,
+                                        color: AppColors.primary,
+                                        size: 30,
+                                      ),
+                                    );
+                                  },
+                                  loadingBuilder: (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return Container(
+                                      color: Colors.white,
+                                      child: const Center(
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                )
+                              : Container(
+                                  color: Colors.white,
+                                  child: const Icon(
+                                    Icons.person,
+                                    color: AppColors.primary,
+                                    size: 30,
+                                  ),
+                                ),
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -506,14 +621,14 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     _DrawerItem(
                       icon: Icons.home,
-                      title: "Home",
+                      title: AppLocalizations.of(context)?.home ?? "Home",
                       onTap: () {
                         Navigator.pop(context);
                       },
                     ),
                     _DrawerItem(
                       icon: Icons.school,
-                      title: "Subjects",
+                      title: AppLocalizations.of(context)?.subjects ?? "Subjects",
                       onTap: () async {
                         Navigator.pop(context);
                         // Reload notes before navigating to ensure note counts are up to date
@@ -525,7 +640,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                     _DrawerItem(
                       icon: Icons.mic,
-                      title: "Recordings",
+                      title: AppLocalizations.of(context)?.recordings ?? "Recordings",
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.pushNamed(context, '/record');
@@ -533,7 +648,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                     _DrawerItem(
                       icon: Icons.chat_bubble_outline,
-                      title: "Chat with AI",
+                      title: AppLocalizations.of(context)?.chatWithAI ?? "Chat with AI",
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -553,7 +668,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                     _DrawerItem(
                       icon: Icons.highlight,
-                      title: "Highlighted Texts",
+                      title: AppLocalizations.of(context)?.highlightedTexts ?? "Highlighted Texts",
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -571,7 +686,7 @@ class _HomePageState extends State<HomePage> {
                     const Divider(color: Colors.white24),
                     _DrawerItem(
                       icon: Icons.person_outline,
-                      title: "Profile",
+                      title: AppLocalizations.of(context)?.profile ?? "Profile",
                       onTap: () async {
                         Navigator.pop(context);
                         await Navigator.push(
@@ -592,7 +707,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                     _DrawerItem(
                       icon: Icons.settings,
-                      title: "Settings",
+                      title: AppLocalizations.of(context)?.settings ?? "Settings",
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -609,7 +724,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                     _DrawerItem(
                       icon: Icons.logout,
-                      title: "Logout",
+                      title: AppLocalizations.of(context)?.logout ?? "Logout",
                       onTap: () async {
                         Navigator.pop(context);
                         // Handle logout with Firebase Auth
