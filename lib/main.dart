@@ -9,10 +9,13 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'firebase_options.dart';
 
 import 'package:ekit_app/services/theme_service.dart';
+import 'package:ekit_app/services/language_service.dart';
+import 'package:ekit_app/l10n/app_localizations.dart';
 import 'package:ekit_app/pages/introPage.dart';
 import 'package:ekit_app/pages/homepage.dart';
 import 'package:ekit_app/pages/notecategory.dart';
@@ -55,10 +58,13 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => ThemeService(),
-      child: Consumer<ThemeService>(
-        builder: (context, themeService, _) {
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeService()),
+        ChangeNotifierProvider(create: (_) => LanguageService()),
+      ],
+      child: Consumer2<ThemeService, LanguageService>(
+        builder: (context, themeService, languageService, _) {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
             title: 'EKit Notes',
@@ -66,6 +72,15 @@ class MyApp extends StatelessWidget {
             // Firebase Analytics navigation tracking
             navigatorObservers: [
               FirebaseAnalyticsObserver(analytics: _analytics),
+            ],
+
+            locale: languageService.locale,
+            supportedLocales: LanguageService.supportedLocales,
+            localizationsDelegates: [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
             ],
 
             theme: themeService.lightTheme.copyWith(
