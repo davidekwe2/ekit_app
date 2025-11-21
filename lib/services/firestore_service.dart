@@ -93,8 +93,10 @@ class FirestoreService {
         'comments': note.comments,
         'highlights': note.highlights.map((h) => _highlightToMap(h)).toList(),
         'aiSummary': note.aiSummary,
+        'aiSummaryTranslation': note.aiSummaryTranslation,
         'aiTranslation': note.aiTranslation,
         'importantPoints': note.importantPoints,
+        'importantPointsTranslation': note.importantPointsTranslation,
         'createdAt': Timestamp.fromDate(note.createdAt),
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -120,8 +122,10 @@ class FirestoreService {
         'comments': note.comments,
         'highlights': note.highlights.map((h) => _highlightToMap(h)).toList(),
         'aiSummary': note.aiSummary,
+        'aiSummaryTranslation': note.aiSummaryTranslation,
         'aiTranslation': note.aiTranslation,
         'importantPoints': note.importantPoints,
+        'importantPointsTranslation': note.importantPointsTranslation,
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
@@ -459,8 +463,12 @@ class FirestoreService {
               .toList() ??
           [],
       aiSummary: data['aiSummary'] as String?,
+      aiSummaryTranslation: data['aiSummaryTranslation'] as String?,
       aiTranslation: data['aiTranslation'] as String?,
       importantPoints: (data['importantPoints'] as List<dynamic>?)
+              ?.map((p) => p as String)
+              .toList(),
+      importantPointsTranslation: (data['importantPointsTranslation'] as List<dynamic>?)
               ?.map((p) => p as String)
               .toList(),
     );
