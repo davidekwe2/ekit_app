@@ -11,6 +11,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../features/storage/store.dart';
 import '../my%20components/mynotes_tile.dart';
 import '../models/note.dart';
+import '../models/category.dart';
 import 'notecategory.dart';
 import '../my components/note_tile.dart';
 import 'recordpage.dart';
@@ -19,6 +20,8 @@ import 'note_detail_page.dart';
 import 'highlighted_texts_page.dart';
 import 'profile_page.dart';
 import 'settings_page.dart';
+import '../services/chat_session_service.dart';
+import '../services/firestore_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -29,20 +32,80 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   StreamSubscription? _authStateSubscription;
+  bool _isLoadingNotes = false;
 
   @override
   void initState() {
     super.initState();
+    // Load notes from Firestore when page initializes
+    _loadNotesFromFirestore();
+    
     // Listen to user changes (including profile updates) to update user info in drawer
     _authStateSubscription = FirebaseAuth.instance.userChanges().listen((user) {
       if (mounted) {
-        setState(() {});
+        if (user != null) {
+          // User logged in - load their data
+          _loadNotesFromFirestore();
+        } else {
+          // User logged out - clear local store
+          AppStore.notes.clear();
+          AppStore.subjects.clear();
+          AppStore.subjects.add(Subject(id: 's0', name: 'No Subject', coverIndex: 0));
+          setState(() {});
+        }
       }
     });
     // Refresh when returning to this page
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      setState(() {});
+      _loadNotesFromFirestore();
     });
+  }
+
+  Future<void> _loadNotesFromFirestore() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      // No user logged in, clear store
+      AppStore.notes.clear();
+      AppStore.subjects.clear();
+      AppStore.subjects.add(Subject(id: 's0', name: 'No Subject', coverIndex: 0));
+      if (mounted) setState(() {});
+      return;
+    }
+
+    if (_isLoadingNotes) return;
+    
+    setState(() {
+      _isLoadingNotes = true;
+    });
+
+    try {
+      // Load notes from Firestore
+      final notes = await FirestoreService.getNotes();
+      
+      // Load subjects from Firestore
+      final subjects = await FirestoreService.getSubjects();
+      
+      // Update AppStore with user-specific data
+      AppStore.notes.clear();
+      AppStore.notes.addAll(notes);
+      
+      AppStore.subjects.clear();
+      AppStore.subjects.add(Subject(id: 's0', name: 'No Subject', coverIndex: 0));
+      AppStore.subjects.addAll(subjects);
+      
+      if (mounted) {
+        setState(() {
+          _isLoadingNotes = false;
+        });
+      }
+    } catch (e) {
+      // If loading fails, keep existing local data
+      if (mounted) {
+        setState(() {
+          _isLoadingNotes = false;
+        });
+      }
+    }
   }
 
   @override
@@ -85,7 +148,7 @@ class _HomePageState extends State<HomePage> {
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
-            setState(() {});
+            await _loadNotesFromFirestore();
           },
           child: CustomScrollView(
             slivers: [
@@ -295,8 +358,12 @@ class _HomePageState extends State<HomePage> {
                           onTap: () {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(
-                                builder: (context) => NoteDetailPage(note: note),
+                              PageRouteBuilder(
+                                pageBuilder: (context, animation, secondaryAnimation) => NoteDetailPage(note: note),
+                                transitionDuration: const Duration(milliseconds: 150),
+                                transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                                  return FadeTransition(opacity: animation, child: child);
+                                },
                               ),
                             );
                           },
@@ -415,9 +482,13 @@ class _HomePageState extends State<HomePage> {
                     _DrawerItem(
                       icon: Icons.school,
                       title: "Subjects",
-                      onTap: () {
+                      onTap: () async {
                         Navigator.pop(context);
-                        Navigator.pushNamed(context, '/categories');
+                        // Reload notes before navigating to ensure note counts are up to date
+                        await _loadNotesFromFirestore();
+                        if (mounted) {
+                          Navigator.pushNamed(context, '/categories');
+                        }
                       },
                     ),
                     _DrawerItem(
@@ -435,7 +506,16 @@ class _HomePageState extends State<HomePage> {
                         Navigator.pop(context);
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const AIChatPage()),
+                          PageRouteBuilder(
+                            pageBuilder: (context, animation, secondaryAnimation) => const AIChatPage(),
+                            transitionDuration: const Duration(milliseconds: 150),
+                            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                              return FadeTransition(
+                                opacity: animation,
+                                child: child,
+                              );
+                            },
+                          ),
                         );
                       },
                     ),
@@ -446,7 +526,13 @@ class _HomePageState extends State<HomePage> {
                         Navigator.pop(context);
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const HighlightedTextsPage()),
+                          PageRouteBuilder(
+                            pageBuilder: (context, animation, secondaryAnimation) => const HighlightedTextsPage(),
+                            transitionDuration: const Duration(milliseconds: 150),
+                            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                              return FadeTransition(opacity: animation, child: child);
+                            },
+                          ),
                         );
                       },
                     ),
@@ -458,7 +544,13 @@ class _HomePageState extends State<HomePage> {
                         Navigator.pop(context);
                         await Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const ProfilePage()),
+                          PageRouteBuilder(
+                            pageBuilder: (context, animation, secondaryAnimation) => const ProfilePage(),
+                            transitionDuration: const Duration(milliseconds: 150),
+                            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                              return FadeTransition(opacity: animation, child: child);
+                            },
+                          ),
                         );
                         // Refresh when returning from profile page
                         if (mounted) {
@@ -473,7 +565,13 @@ class _HomePageState extends State<HomePage> {
                         Navigator.pop(context);
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const SettingsPage()),
+                          PageRouteBuilder(
+                            pageBuilder: (context, animation, secondaryAnimation) => const SettingsPage(),
+                            transitionDuration: const Duration(milliseconds: 150),
+                            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                              return FadeTransition(opacity: animation, child: child);
+                            },
+                          ),
                         );
                       },
                     ),
@@ -484,6 +582,15 @@ class _HomePageState extends State<HomePage> {
                         Navigator.pop(context);
                         // Handle logout with Firebase Auth
                         try {
+                          final userId = FirebaseAuth.instance.currentUser?.uid;
+                          if (userId != null) {
+                            await ChatSessionService.clearCurrentChatForUser(userId);
+                          }
+                          // Clear local store before logout
+                          AppStore.notes.clear();
+                          AppStore.subjects.clear();
+                          AppStore.subjects.add(Subject(id: 's0', name: 'No Subject', coverIndex: 0));
+                          
                           // Sign out from Google Sign In if signed in with Google
                           await GoogleSignIn().signOut();
                           // Sign out from Firebase Auth
