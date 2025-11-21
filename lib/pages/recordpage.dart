@@ -1,12 +1,11 @@
 // Enhanced Audio Note page with beautiful UI and AI features
 import 'dart:async';
-import 'dart:io';
 import 'dart:typed_data';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:path_provider/path_provider.dart'; // (kept if you use it elsewhere)
 import 'package:permission_handler/permission_handler.dart';
 import 'package:sound_stream/sound_stream.dart';
 import 'package:google_speech/google_speech.dart';
@@ -18,13 +17,14 @@ import '../models/note.dart';
 import '../models/category.dart';
 import '../my components/live_waveform.dart';
 import '../themes/colors.dart';
-import '../services/gemini_service.dart';
+import '../services/gemini_service.dart'; // kept if used elsewhere
 import '../services/gemini_live_service.dart';
 import '../services/firestore_service.dart';
-import 'note_detail_page.dart';
+import 'note_detail_page.dart'; // kept if you navigate here elsewhere
 
 class RecordPage extends StatefulWidget {
   const RecordPage({super.key});
+
   @override
   State<RecordPage> createState() => _RecordPageState();
 }
@@ -59,7 +59,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
 
   // language picker
   Lang? _selectedLang = kSpeechLangs.firstWhere(
-    (l) => l.code == 'en-US',
+        (l) => l.code == 'en-US',
     orElse: () => kSpeechLangs.first,
   ); // Default to English (US)
   bool _autoDetectLanguage = false;
@@ -75,7 +75,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
   String? _aiTranslation;
   List<String>? _importantPoints;
 
-  // Writer selection (Writer 1 = Google Cloud TTS, Writer 2 = Gemini Live)
+  // Writer selection (Writer 1 = Google Cloud STT, Writer 2 = Gemini Live)
   int _selectedWriter = 1; // Default to Writer 1
   bool _isProcessingWithGemini = false;
 
@@ -141,16 +141,18 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
     // mic bytes -> buffer, STT stream, and waveform level
     _micSub = _rec.audioStream.listen((bytes) {
       _buffer.add(bytes);
-      
+
       // Route audio based on selected writer
       if (_selectedWriter == 1) {
-        // Writer 1: Google Cloud TTS
+        // Writer 1: Google Cloud STT
         _sttIn?.add(bytes);
-      } else if (_selectedWriter == 2 && _geminiLive != null && _geminiLive!.isConnected) {
+      } else if (_selectedWriter == 2 &&
+          _geminiLive != null &&
+          _geminiLive!.isConnected) {
         // Writer 2: Gemini Live streaming
         _geminiLive!.sendAudioChunk(bytes);
       }
-      
+
       if (_playOn) _player.writeChunk(bytes);
 
       // ---- mic level (dBFS -> 0..1) ----
@@ -220,7 +222,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
       _duration = Duration.zero;
       _updateTextField();
     }
-    
+
     setState(() {
       _recognizing = true;
       _showAIOptions = false;
@@ -233,7 +235,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
 
     // Initialize based on selected writer
     if (_selectedWriter == 1) {
-      // Writer 1: Google Cloud TTS
+      // Writer 1: Google Cloud STT
       if (_stt == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -247,12 +249,11 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
       // Create new stream if not resuming (paused state means stream still exists)
       if (_sttIn == null || _sttIn!.isClosed) {
         _sttIn = StreamController<List<int>>();
-        
+
         // Get the language code - use selected language or default to en-US
-        final languageCode = _autoDetectLanguage 
-            ? 'en-US' // Default for auto-detect (package limitation)
-            : (_selectedLang?.code ?? 'en-US');
-        
+        final languageCode =
+        _autoDetectLanguage ? 'en-US' : (_selectedLang?.code ?? 'en-US');
+
         final cfg = RecognitionConfig(
           encoding: AudioEncoding.LINEAR16,
           sampleRateHertz: _rate,
@@ -290,14 +291,14 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
               if (toAdd.isNotEmpty) {
                 toAdd = toAdd.trim();
                 if (toAdd.isNotEmpty) {
-                  if (_committed.isNotEmpty && 
-                      !_committed.endsWith(' ') && 
+                  if (_committed.isNotEmpty &&
+                      !_committed.endsWith(' ') &&
                       !_committed.endsWith('\n')) {
                     _committed += ' ';
                   }
                   _committed += toAdd;
-                  if (!_committed.endsWith('.') && 
-                      !_committed.endsWith('!') && 
+                  if (!_committed.endsWith('.') &&
+                      !_committed.endsWith('!') &&
                       !_committed.endsWith('?') &&
                       !_committed.endsWith(',') &&
                       !_committed.endsWith(';') &&
@@ -335,19 +336,19 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
         setState(() => _isProcessingWithGemini = true);
         _geminiLive = GeminiLiveService();
         await _geminiLive!.connect();
-        
+
         // Listen to transcript stream
         _geminiLiveSub?.cancel();
         _geminiLiveSub = _geminiLive!.transcriptStream.listen(
-          (text) {
+              (text) {
             if (mounted && text.isNotEmpty) {
               // Append new transcript text
               if (_committed.isNotEmpty && !_committed.endsWith(' ')) {
                 _committed += ' ';
               }
               _committed += text.trim();
-              if (!_committed.endsWith('.') && 
-                  !_committed.endsWith('!') && 
+              if (!_committed.endsWith('.') &&
+                  !_committed.endsWith('!') &&
                   !_committed.endsWith('?') &&
                   !_committed.endsWith(',') &&
                   !_committed.endsWith(';') &&
@@ -358,7 +359,6 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
             }
           },
           onError: (error) {
-            print('Gemini Live error: $error');
             if (mounted) {
               setState(() {
                 _recognizing = false;
@@ -373,10 +373,9 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
             }
           },
         );
-        
+
         setState(() => _isProcessingWithGemini = false);
       } catch (e) {
-        print('Failed to connect to Gemini Live: $e');
         if (mounted) {
           setState(() {
             _recognizing = false;
@@ -388,8 +387,8 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
               backgroundColor: AppColors.error,
             ),
           );
-          return;
         }
+        return;
       }
     }
 
@@ -408,7 +407,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
     } else {
       // If recording, close streams based on writer
       if (_selectedWriter == 1) {
-        // Writer 1: Close Google Cloud TTS stream
+        // Writer 1: Close Google Cloud STT stream
         await _sttIn?.close();
         _sttIn = null;
         await _sttSub?.cancel();
@@ -431,7 +430,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
       _recOn = false;
       _isProcessingWithGemini = false;
     });
-    
+
     // Auto-save and navigate if there's content
     if (_committed.trim().isNotEmpty) {
       await _saveNote();
@@ -440,11 +439,11 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
 
   void _updateTextField() {
     if (!mounted) return;
-    
+
     if (_recOn) {
       // When recording, trigger rebuild to update RichText display
       setState(() {});
-      
+
       // Smooth auto-scroll to bottom for real-time note-taking feel
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_scrollCtl.hasClients) {
@@ -465,8 +464,9 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
         displayText += _interim;
       }
       _textCtl.text = displayText;
-      _textCtl.selection =
-          TextSelection.fromPosition(TextPosition(offset: _textCtl.text.length));
+      _textCtl.selection = TextSelection.fromPosition(
+        TextPosition(offset: _textCtl.text.length),
+      );
     }
   }
 
@@ -534,25 +534,23 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
     AppStore.addNote(note);
     try {
       await FirestoreService.saveNote(note);
-    } catch (e) {
-      // If Firestore save fails, still keep it in local store
+    } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Note saved locally. Will sync when online.'),
             backgroundColor: AppColors.primary,
-            duration: const Duration(seconds: 2),
+            duration: Duration(seconds: 2),
           ),
         );
       }
     }
 
     if (mounted) {
-      // Navigate to home page to show the new note in recent notes
       Navigator.pushNamedAndRemoveUntil(
         context,
         '/home',
-        (route) => false,
+            (route) => false,
       );
     }
   }
@@ -560,184 +558,214 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
   Future<Map<String, dynamic>?> _showSubjectSelectionDialog() async {
     final noteNameController = TextEditingController();
     String? selectedSubjectId;
+
     return showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          'Save Note',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-        ),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Note name field
-                Text(
-                  'Note Name',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: noteNameController,
-                  decoration: InputDecoration(
-                    hintText: 'Enter note name',
-                    hintStyle: GoogleFonts.poppins(
-                      color: AppColors.textSecondary,
-                    ),
-                    prefixIcon: const Icon(Icons.note, color: AppColors.primary),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                // Subject selection
-                Text(
-                  'Select Subject',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String?>(
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                  ),
-                  hint: Row(
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final theme = Theme.of(context);
+            final textColor = theme.colorScheme.onSurface;
+            final secondaryTextColor =
+            theme.colorScheme.onSurface.withOpacity(0.7);
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: Text(
+                'Save Note',
+                style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.school, color: AppColors.primary, size: 20),
-                      const SizedBox(width: 12),
+                      // Note name field
                       Text(
-                        'Choose a subject',
+                        'Note Name',
                         style: GoogleFonts.poppins(
-                          color: AppColors.textSecondary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: textColor,
                         ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: noteNameController,
+                        decoration: InputDecoration(
+                          hintText: 'Enter note name',
+                          hintStyle: GoogleFonts.poppins(
+                            color: secondaryTextColor,
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.note,
+                            color: AppColors.primary,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      // Subject selection
+                      Text(
+                        'Select Subject',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: textColor,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String?>(
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                        ),
+                        hint: Row(
+                          children: [
+                            const Icon(
+                              Icons.school,
+                              color: AppColors.primary,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Choose a subject',
+                              style: GoogleFonts.poppins(
+                                color: secondaryTextColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                        value: selectedSubjectId,
+                        isExpanded: true,
+                        menuMaxHeight: 300,
+                        style: GoogleFonts.poppins(color: textColor),
+                        selectedItemBuilder: (context) {
+                          return AppStore.subjects.map((subject) {
+                            final value =
+                            subject.id == 's0' ? null : subject.id;
+                            return Row(
+                              children: [
+                                Icon(
+                                  subject.icon ?? Icons.school,
+                                  color: AppColors.primary,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    subject.name,
+                                    style: GoogleFonts.poppins(),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            );
+                          }).toList();
+                        },
+                        items: AppStore.subjects.map((subject) {
+                          final value =
+                          subject.id == 's0' ? null : subject.id;
+                          return DropdownMenuItem<String?>(
+                            value: value,
+                            child: Row(
+                              children: [
+                                Icon(
+                                  subject.icon ?? Icons.school,
+                                  color: AppColors.primary,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    subject.name,
+                                    style: GoogleFonts.poppins(),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setDialogState(() {
+                            selectedSubjectId = value;
+                          });
+                        },
                       ),
                     ],
                   ),
-                  value: selectedSubjectId,
-                  isExpanded: true,
-                  menuMaxHeight: 300,
-                  selectedItemBuilder: (context) {
-                    return AppStore.subjects.map((subject) {
-                      final value = subject.id == 's0' ? null : subject.id;
-                      return Row(
-                        children: [
-                          Icon(
-                            subject.icon ?? Icons.school,
-                            color: AppColors.primary,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              subject.name,
-                              style: GoogleFonts.poppins(),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      );
-                    }).toList();
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, {
+                    'subjectId': null,
+                    'noteName': noteNameController.text.trim(),
+                  }),
+                  child: Text('Cancel', style: GoogleFonts.poppins()),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    final newSubjectId =
+                    await _showCreateSubjectDialog(dialogContext);
+                    if (newSubjectId != null && mounted) {
+                      Navigator.pop(dialogContext, {
+                        'subjectId': newSubjectId,
+                        'noteName': noteNameController.text.trim(),
+                      });
+                    }
                   },
-                  items: AppStore.subjects.map((subject) {
-                    final value = subject.id == 's0' ? null : subject.id;
-                    return DropdownMenuItem<String?>(
-                      value: value,
-                      child: Row(
-                        children: [
-                          Icon(
-                            subject.icon ?? Icons.school,
-                            color: AppColors.primary,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              subject.name,
-                              style: GoogleFonts.poppins(),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setDialogState(() {
-                      selectedSubjectId = value;
+                  child: Text(
+                    'Create New',
+                    style: GoogleFonts.poppins(color: AppColors.primary),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(dialogContext, {
+                      'subjectId': selectedSubjectId,
+                      'noteName': noteNameController.text.trim(),
                     });
                   },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(
+                    'Save',
+                    style: GoogleFonts.poppins(color: Colors.white),
+                  ),
                 ),
               ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, {
-              'subjectId': null,
-              'noteName': noteNameController.text.trim(),
-            }),
-            child: Text('Cancel', style: GoogleFonts.poppins()),
-          ),
-          TextButton(
-            onPressed: () async {
-              // Show create subject dialog and wait for result
-              final newSubjectId = await _showCreateSubjectDialog(context);
-              if (newSubjectId != null && context.mounted) {
-                Navigator.pop(context, {
-                  'subjectId': newSubjectId,
-                  'noteName': noteNameController.text.trim(),
-                });
-              }
-            },
-            child: Text('Create New', style: GoogleFonts.poppins(color: AppColors.primary)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context, {
-                'subjectId': selectedSubjectId,
-                'noteName': noteNameController.text.trim(),
-              });
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: Text('Save', style: GoogleFonts.poppins(color: Colors.white)),
-          ),
-        ],
-        ),
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
   Future<String?> _showCreateSubjectDialog(BuildContext dialogContext) async {
     final controller = TextEditingController();
     IconData? selectedIcon;
-    
+
     // List of available icons
     final availableIcons = [
       Icons.school,
@@ -751,8 +779,13 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
       context: dialogContext,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text('Create Subject', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Text(
+            'Create Subject',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+          ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -767,7 +800,9 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                       selectedIcon ?? Icons.school,
                       color: AppColors.primary,
                     ),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -797,12 +832,15 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                           decoration: BoxDecoration(
                             color: selectedIcon == null
                                 ? AppColors.primary.withOpacity(0.2)
-                                : AppColors.background,
+                                : Theme.of(context).cardColor,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: selectedIcon == null
                                   ? AppColors.primary
-                                  : AppColors.textLight,
+                                  : Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withOpacity(0.3),
                               width: 2,
                             ),
                           ),
@@ -812,6 +850,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                       const SizedBox(width: 8),
                       // Icon options
                       ...availableIcons.map((icon) {
+                        final isSelected = selectedIcon == icon;
                         return Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: GestureDetector(
@@ -824,14 +863,17 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                               width: 48,
                               height: 48,
                               decoration: BoxDecoration(
-                                color: selectedIcon == icon
+                                color: isSelected
                                     ? AppColors.primary.withOpacity(0.2)
-                                    : AppColors.background,
+                                    : Theme.of(context).cardColor,
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: selectedIcon == icon
+                                  color: isSelected
                                       ? AppColors.primary
-                                      : AppColors.textLight,
+                                      : Theme.of(context)
+                                      .colorScheme
+                                      .onSurface
+                                      .withOpacity(0.3),
                                   width: 2,
                                 ),
                               ),
@@ -858,9 +900,11 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
             ElevatedButton(
               onPressed: () async {
                 if (controller.text.trim().isNotEmpty) {
-                  final subjectId = 's${DateTime.now().microsecondsSinceEpoch}';
-                  final coverIndex = 1 + (DateTime.now().millisecondsSinceEpoch % 8);
-                  
+                  final subjectId =
+                      's${DateTime.now().microsecondsSinceEpoch}';
+                  final coverIndex =
+                      1 + (DateTime.now().millisecondsSinceEpoch % 8);
+
                   // Create subject object with consistent ID
                   final subject = Subject(
                     id: subjectId,
@@ -868,25 +912,26 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                     coverIndex: coverIndex,
                     icon: selectedIcon,
                   );
-                  
+
                   // Add to local store
                   AppStore.subjects.add(subject);
-                  
+
                   // Save to Firestore
                   try {
                     await FirestoreService.saveSubject(subject);
-                  } catch (e) {
-                    // If save fails, show error but keep in local store
+                  } catch (_) {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Subject saved locally. Will sync when online.'),
+                        const SnackBar(
+                          content: Text(
+                            'Subject saved locally. Will sync when online.',
+                          ),
                           backgroundColor: AppColors.primary,
                         ),
                       );
                     }
                   }
-                  
+
                   if (mounted) {
                     Navigator.pop(context, subject.id);
                   }
@@ -894,9 +939,14 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
-              child: Text('Create', style: GoogleFonts.poppins(color: Colors.white)),
+              child: Text(
+                'Create',
+                style: GoogleFonts.poppins(color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -907,7 +957,8 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
   void _generateSummary() {
     // Simulate AI summary
     setState(() {
-      _aiSummary = 'Summary: ${_committed.substring(0, math.min(200, _committed.length))}...';
+      _aiSummary =
+      'Summary: ${_committed.substring(0, math.min(200, _committed.length))}...';
     });
   }
 
@@ -938,19 +989,25 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor = theme.colorScheme.onSurface;
+    final backgroundColor = theme.scaffoldBackgroundColor;
+    final cardColor = theme.cardColor;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.close, color: AppColors.textPrimary),
+          icon: Icon(Icons.close, color: textColor),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'New Recording',
           style: GoogleFonts.poppins(
-            color: AppColors.textPrimary,
+            color: textColor,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -963,11 +1020,11 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cardColor,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 5),
                   ),
@@ -975,14 +1032,15 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.edit_note, color: AppColors.primary, size: 22),
+                  const Icon(Icons.edit_note,
+                      color: AppColors.primary, size: 22),
                   const SizedBox(width: 12),
                   Text(
                     'Writer:',
                     style: GoogleFonts.poppins(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+                      color: textColor,
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -992,15 +1050,15 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                         Expanded(
                           child: _WriterButton(
                             label: 'Writer 1',
-                            subtitle: 'Google Cloud TTS',
+                            subtitle: 'Google Cloud STT',
                             isSelected: _selectedWriter == 1,
-                            onTap: (_recOn || _isPaused) 
-                                ? null 
+                            onTap: (_recOn || _isPaused)
+                                ? null
                                 : () {
-                                    setState(() {
-                                      _selectedWriter = 1;
-                                    });
-                                  },
+                              setState(() {
+                                _selectedWriter = 1;
+                              });
+                            },
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -1009,13 +1067,13 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                             label: 'Writer 2',
                             subtitle: 'Gemini AI',
                             isSelected: _selectedWriter == 2,
-                            onTap: (_recOn || _isPaused) 
-                                ? null 
+                            onTap: (_recOn || _isPaused)
+                                ? null
                                 : () {
-                                    setState(() {
-                                      _selectedWriter = 2;
-                                    });
-                                  },
+                              setState(() {
+                                _selectedWriter = 2;
+                              });
+                            },
                           ),
                         ),
                       ],
@@ -1030,13 +1088,14 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cardColor,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 5),
                   ),
@@ -1044,7 +1103,8 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.language, color: AppColors.primary, size: 22),
+                  const Icon(Icons.language,
+                      color: AppColors.primary, size: 22),
                   const SizedBox(width: 12),
                   Expanded(
                     child: DropdownButtonFormField<String?>(
@@ -1055,17 +1115,20 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                         contentPadding: EdgeInsets.zero,
                       ),
                       hint: Text(
-                        _autoDetectLanguage ? 'Auto-detect' : 'Select language',
+                        _autoDetectLanguage
+                            ? 'Auto-detect'
+                            : 'Select language',
                         style: GoogleFonts.poppins(
-                          color: AppColors.textSecondary,
+                          color: textColor.withOpacity(0.7),
                           fontSize: 15,
                         ),
                       ),
                       style: GoogleFonts.poppins(
                         fontSize: 15,
-                        color: AppColors.textPrimary,
+                        color: textColor,
                       ),
-                      icon: const Icon(Icons.arrow_drop_down, color: AppColors.primary),
+                      icon: const Icon(Icons.arrow_drop_down,
+                          color: AppColors.primary),
                       isExpanded: true,
                       menuMaxHeight: 400,
                       items: [
@@ -1073,7 +1136,8 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                           value: null,
                           child: Row(
                             children: [
-                              Icon(Icons.auto_awesome, color: AppColors.primary, size: 20),
+                              const Icon(Icons.auto_awesome,
+                                  color: AppColors.primary, size: 20),
                               const SizedBox(width: 12),
                               Text(
                                 'Auto-detect Language',
@@ -1089,30 +1153,34 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                           enabled: false,
                           child: Divider(),
                         ),
-                        ...kSpeechLangs.map((l) => DropdownMenuItem<String?>(
-                              value: l.code,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 4),
-                                child: Text(
-                                  l.name,
-                                  style: GoogleFonts.poppins(fontSize: 14),
-                                ),
+                        ...kSpeechLangs.map(
+                              (l) => DropdownMenuItem<String?>(
+                            value: l.code,
+                            child: Padding(
+                              padding:
+                              const EdgeInsets.symmetric(vertical: 4),
+                              child: Text(
+                                l.name,
+                                style: GoogleFonts.poppins(fontSize: 14),
                               ),
-                            )),
+                            ),
+                          ),
+                        ),
                       ],
-                      onChanged: (_recOn || _isPaused) 
-                          ? null // Disable language change during recording
+                      onChanged: (_recOn || _isPaused)
+                          ? null
                           : (code) {
-                              setState(() {
-                                if (code == null) {
-                                  _autoDetectLanguage = true;
-                                  _selectedLang = null;
-                                } else {
-                                  _autoDetectLanguage = false;
-                                  _selectedLang = kSpeechLangs.firstWhere((l) => l.code == code);
-                                }
-                              });
-                            },
+                        setState(() {
+                          if (code == null) {
+                            _autoDetectLanguage = true;
+                            _selectedLang = null;
+                          } else {
+                            _autoDetectLanguage = false;
+                            _selectedLang = kSpeechLangs
+                                .firstWhere((l) => l.code == code);
+                          }
+                        });
+                      },
                     ),
                   ),
                 ],
@@ -1134,14 +1202,6 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                   AppColors.primaryLight.withOpacity(0.1),
                 ],
               ),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withOpacity(0.2),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-              ],
             ),
             child: ValueListenableBuilder<double>(
               valueListenable: _level,
@@ -1150,7 +1210,10 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                   animation: _pulseController,
                   builder: (context, child) {
                     return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -1171,7 +1234,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                                   Container(
                                     width: 8,
                                     height: 8,
-                                    decoration: BoxDecoration(
+                                    decoration: const BoxDecoration(
                                       color: AppColors.error,
                                       shape: BoxShape.circle,
                                     ),
@@ -1190,63 +1253,69 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                             )
                           else
                             const SizedBox.shrink(),
-                           // Enhanced waveform
-                           Expanded(
-                             child: LiveWaveform(
-                               level: _level,
-                               color: AppColors.primary,
-                               barCount: 30,
-                             ),
-                           ),
-                           // Status indicator - note-taking focused
-                           Container(
-                             padding: const EdgeInsets.symmetric(
-                               horizontal: 12,
-                               vertical: 6,
-                             ),
-                             decoration: BoxDecoration(
-                               color: _recognizing 
-                                   ? AppColors.primary.withOpacity(0.15)
-                                   : AppColors.textLight.withOpacity(0.1),
-                               borderRadius: BorderRadius.circular(12),
-                               border: Border.all(
-                                 color: _recognizing 
-                                     ? AppColors.primary.withOpacity(0.3)
-                                     : AppColors.textLight.withOpacity(0.3),
-                                 width: 1,
-                               ),
-                             ),
-                             child: Row(
-                               mainAxisSize: MainAxisSize.min,
-                               children: [
-                                 if (_recognizing) ...[
-                                   Container(
-                                     width: 6,
-                                     height: 6,
-                                     decoration: BoxDecoration(
-                                       color: AppColors.primary,
-                                       shape: BoxShape.circle,
-                                     ),
-                                   ),
-                                   const SizedBox(width: 6),
-                                 ],
-                                 Text(
-                                   _recognizing 
-                                       ? (_isProcessingWithGemini 
-                                           ? 'Processing with Gemini...' 
-                                           : 'Taking notes...')
-                                       : 'Ready to record',
-                                   style: GoogleFonts.poppins(
-                                     color: _recognizing 
-                                         ? AppColors.primary
-                                         : AppColors.textSecondary,
-                                     fontSize: 11,
-                                     fontWeight: FontWeight.w500,
-                                   ),
-                                 ),
-                               ],
-                             ),
-                           ),
+                          // Enhanced waveform
+                          Expanded(
+                            child: LiveWaveform(
+                              level: _level,
+                              color: AppColors.primary,
+                              barCount: 30,
+                            ),
+                          ),
+                          // Status indicator
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _recognizing
+                                  ? AppColors.primary.withOpacity(0.15)
+                                  : Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _recognizing
+                                    ? AppColors.primary.withOpacity(0.3)
+                                    : Theme.of(context)
+                                    .colorScheme
+                                    .onSurface
+                                    .withOpacity(0.3),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (_recognizing) ...[
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: const BoxDecoration(
+                                      color: AppColors.primary,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                ],
+                                Text(
+                                  _recognizing
+                                      ? (_isProcessingWithGemini
+                                      ? 'Processing with Gemini...'
+                                      : 'Taking notes...')
+                                      : 'Ready to record',
+                                  style: GoogleFonts.poppins(
+                                    color: _recognizing
+                                        ? AppColors.primary
+                                        : AppColors.textSecondary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                     );
@@ -1257,7 +1326,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
           ),
           const SizedBox(height: 24),
 
-          // Comments input - show always when recording or paused
+          // Comments input
           if (_recOn || _isPaused || _committed.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -1266,11 +1335,12 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                 decoration: InputDecoration(
                   hintText: 'Comments (optional)',
                   hintStyle: GoogleFonts.poppins(
-                    color: AppColors.textSecondary,
+                    color: textColor.withOpacity(0.7),
                   ),
-                  prefixIcon: const Icon(Icons.comment, color: AppColors.primary),
+                  prefixIcon: const Icon(Icons.comment,
+                      color: AppColors.primary),
                   filled: true,
-                  fillColor: Colors.white,
+                  fillColor: cardColor,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide.none,
@@ -1283,18 +1353,20 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
               ),
             ),
 
-          if (_recOn || _isPaused || _committed.isNotEmpty) const SizedBox(height: 16),
+          if (_recOn || _isPaused || _committed.isNotEmpty)
+            const SizedBox(height: 16),
 
-          // Transcript - Fixed height container
+          // Transcript
           Expanded(
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 20),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: cardColor,
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color:
+                    Colors.black.withOpacity(isDark ? 0.3 : 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 5),
                   ),
@@ -1302,71 +1374,74 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
               ),
               child: _recOn
                   ? Builder(
-                      builder: (context) {
-                        // Force rebuild when text changes
-                        final displayText = _committed + _interim;
-                        return SingleChildScrollView(
-                          controller: _scrollCtl,
-                          padding: const EdgeInsets.all(20),
-                          child: RichText(
-                            text: TextSpan(
-                              text: _committed,
-                              style: GoogleFonts.poppins(
-                                fontSize: 16,
-                                height: 1.8,
-                                color: AppColors.textPrimary,
-                                letterSpacing: 0.2,
-                              ),
-                              children: _interim.isNotEmpty
-                                  ? [
-                                      TextSpan(
-                                        text: _interim,
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 16,
-                                          height: 1.8,
-                                          color: AppColors.textSecondary.withOpacity(0.7),
-                                          letterSpacing: 0.2,
-                                          fontStyle: FontStyle.italic,
-                                        ),
-                                      ),
-                                    ]
-                                  : null,
+                builder: (context) {
+                  final displayText = _committed + _interim;
+                  // `displayText` kept so widget rebuilds when text changes
+                  return SingleChildScrollView(
+                    controller: _scrollCtl,
+                    padding: const EdgeInsets.all(20),
+                    child: RichText(
+                      text: TextSpan(
+                        text: _committed,
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          height: 1.8,
+                          color: textColor,
+                          letterSpacing: 0.2,
+                        ),
+                        children: _interim.isNotEmpty
+                            ? [
+                          TextSpan(
+                            text: _interim,
+                            style: GoogleFonts.poppins(
+                              fontSize: 16,
+                              height: 1.8,
+                              color: textColor
+                                  .withOpacity(0.7),
+                              letterSpacing: 0.2,
+                              fontStyle: FontStyle.italic,
                             ),
                           ),
-                        );
-                      },
-                    )
-                  : TextField(
-                      controller: _textCtl,
-                      readOnly: false,
-                      maxLines: null,
-                      expands: true,
-                      scrollController: _scrollCtl,
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        height: 1.8,
-                        color: AppColors.textPrimary,
-                        letterSpacing: 0.2,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'Press record to start taking notes',
-                        hintStyle: GoogleFonts.poppins(
-                          color: AppColors.textLight,
-                          fontSize: 15,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          borderSide: BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.all(20),
+                        ]
+                            : null,
                       ),
                     ),
+                  );
+                },
+              )
+                  : TextField(
+                controller: _textCtl,
+                readOnly: false,
+                maxLines: null,
+                expands: true,
+                scrollController: _scrollCtl,
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  height: 1.8,
+                  color: textColor,
+                  letterSpacing: 0.2,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Press record to start taking notes',
+                  hintStyle: GoogleFonts.poppins(
+                    color: textColor.withOpacity(0.5),
+                    fontSize: 15,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    borderSide: BorderSide.none,
+                  ),
+                  filled: true,
+                  fillColor: cardColor,
+                  contentPadding: const EdgeInsets.all(20),
+                ),
+              ),
             ),
           ),
 
           const SizedBox(height: 20),
 
-          // AI Options (after recording)
+          // AI Options
           if (_showAIOptions && !_recOn)
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 20),
@@ -1386,7 +1461,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                     style: GoogleFonts.poppins(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                      color: textColor,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -1436,17 +1511,17 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
                   onTap: _recOn || _isPaused
                       ? null
                       : () {
-                          setState(() {
-                            _committed = '';
-                            _interim = '';
-                            _lastFinal = '';
-                            _showAIOptions = false;
-                            _aiSummary = null;
-                            _aiTranslation = null;
-                            _importantPoints = null;
-                          });
-                          _updateTextField();
-                        },
+                    setState(() {
+                      _committed = '';
+                      _interim = '';
+                      _lastFinal = '';
+                      _showAIOptions = false;
+                      _aiSummary = null;
+                      _aiTranslation = null;
+                      _importantPoints = null;
+                    });
+                    _updateTextField();
+                  },
                 ),
                 if (_recOn && !_isPaused)
                   _ControlButton(
@@ -1521,17 +1596,17 @@ class _ControlButton extends StatelessWidget {
             color: onTap == null
                 ? color.withOpacity(0.3)
                 : isPrimary
-                    ? color
-                    : color.withOpacity(0.1),
+                ? color
+                : color.withOpacity(0.1),
             shape: BoxShape.circle,
             boxShadow: onTap != null && isPrimary
                 ? [
-                    BoxShadow(
-                      color: color.withOpacity(0.4),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ]
+              BoxShadow(
+                color: color.withOpacity(0.4),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ]
                 : null,
           ),
           child: Material(
@@ -1544,8 +1619,8 @@ class _ControlButton extends StatelessWidget {
                 color: onTap == null
                     ? color.withOpacity(0.5)
                     : isPrimary
-                        ? Colors.white
-                        : color,
+                    ? Colors.white
+                    : color,
                 size: isPrimary ? 32 : 24,
               ),
             ),
@@ -1557,8 +1632,14 @@ class _ControlButton extends StatelessWidget {
           style: GoogleFonts.poppins(
             fontSize: 12,
             color: onTap == null
-                ? AppColors.textLight
-                : AppColors.textSecondary,
+                ? Theme.of(context)
+                .colorScheme
+                .onSurface
+                .withOpacity(0.5)
+                : Theme.of(context)
+                .colorScheme
+                .onSurface
+                .withOpacity(0.7),
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -1580,13 +1661,17 @@ class _AIActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cardColor = theme.cardColor;
+    final textColor = theme.colorScheme.onSurface;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cardColor,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
@@ -1597,7 +1682,7 @@ class _AIActionButton extends StatelessWidget {
               label,
               style: GoogleFonts.poppins(
                 fontSize: 11,
-                color: AppColors.textPrimary,
+                color: textColor,
                 fontWeight: FontWeight.w500,
               ),
               textAlign: TextAlign.center,
@@ -1632,12 +1717,15 @@ class _WriterButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected
               ? AppColors.primary.withOpacity(0.15)
-              : AppColors.background,
+              : Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
                 ? AppColors.primary
-                : AppColors.textLight.withOpacity(0.3),
+                : Theme.of(context)
+                .colorScheme
+                .onSurface
+                .withOpacity(0.3),
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -1649,9 +1737,7 @@ class _WriterButton extends StatelessWidget {
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
-                color: isSelected
-                    ? AppColors.primary
-                    : AppColors.textPrimary,
+                color: isSelected ? AppColors.primary : AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 2),
