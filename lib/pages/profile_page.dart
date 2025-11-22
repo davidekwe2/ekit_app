@@ -99,10 +99,12 @@ class _ProfilePageState extends State<ProfilePage> {
 
     try {
       // Upload to Firebase Storage
+      // Path must match Firebase Storage rules: profile_pictures/{userId}/{fileName}
       final ref = FirebaseStorage.instance
           .ref()
           .child('profile_pictures')
-          .child('${user.uid}.jpg');
+          .child(user.uid)
+          .child('profile.jpg');
 
       await ref.putFile(_profileImage!);
       final downloadUrl = await ref.getDownloadURL();

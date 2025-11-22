@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart'; // (kept if you use it elsewhere)
 import 'package:permission_handler/permission_handler.dart';
@@ -221,6 +222,7 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
       _committed = '';
       _pausedDuration = Duration.zero;
       _duration = Duration.zero;
+      _buffer.clear(); // Clear audio buffer for new recording
       _updateTextField();
     }
 
@@ -255,14 +257,17 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
         final languageCode =
         _autoDetectLanguage ? 'en-US' : (_selectedLang?.code ?? 'en-US');
 
+        // Only use enhanced video model for English - it's not supported for other languages
+        final bool useEnhancedModel = languageCode == 'en-US';
+
         final cfg = RecognitionConfig(
           encoding: AudioEncoding.LINEAR16,
           sampleRateHertz: _rate,
           languageCode: languageCode,
           enableAutomaticPunctuation: true,
           maxAlternatives: 1,
-          model: RecognitionModel.video,
-          useEnhanced: true,
+          model: useEnhancedModel ? RecognitionModel.video : RecognitionModel.command_and_search,
+          useEnhanced: useEnhancedModel,
         );
 
         final responses = _stt!.streamingRecognize(
@@ -408,17 +413,103 @@ class _RecordPageState extends State<RecordPage> with TickerProviderStateMixin {
     } else {
       // If recording, close streams based on writer
       if (_selectedWriter == 1) {
-        // Writer 1: Close Google Cloud STT stream
+        // Writer 1: Close Google Cloud STT stream first
         await _sttIn?.close();
         _sttIn = null;
         await _sttSub?.cancel();
         _sttSub = null;
+        
+        // Perform batch recognition on full audio for higher accuracy
+        if (_stt != null && _buffer.isNotEmpty) {
+          try {
+            // Show processing state
+            if (mounted) {
+              setState(() {
+                _isProcessingWithGemini = true; // Reuse this flag for batch processing
+              });
+            }
+            
+            // Combine all audio chunks into a single buffer
+            final int totalLength = _buffer.fold<int>(0, (sum, chunk) => sum + chunk.length);
+            final Uint8List fullAudio = Uint8List(totalLength);
+            int offset = 0;
+            for (final chunk in _buffer) {
+              fullAudio.setRange(offset, offset + chunk.length, chunk);
+              offset += chunk.length;
+            }
+            
+            // Get the language code
+            final languageCode =
+                _autoDetectLanguage ? 'en-US' : (_selectedLang?.code ?? 'en-US');
+            
+            // Only use enhanced video model for English - it's not supported for other languages
+            final bool useEnhancedModel = languageCode == 'en-US';
+            
+            // Create recognition config for batch recognition
+            final cfg = RecognitionConfig(
+              encoding: AudioEncoding.LINEAR16,
+              sampleRateHertz: _rate,
+              languageCode: languageCode,
+              enableAutomaticPunctuation: true,
+              maxAlternatives: 1,
+              model: useEnhancedModel ? RecognitionModel.video : RecognitionModel.command_and_search,
+              useEnhanced: useEnhancedModel,
+            );
+            
+            // Perform batch recognition on the full audio
+            final response = await _stt!.recognize(cfg, fullAudio);
+            
+            // Extract the final transcript from batch recognition
+            if (response.results.isNotEmpty) {
+              final batchTranscript = response.results
+                  .map((r) => r.alternatives.first.transcript)
+                  .join(' ')
+                  .trim();
+              
+              // Replace committed text with batch recognition result (more accurate)
+              if (batchTranscript.isNotEmpty) {
+                setState(() {
+                  _committed = batchTranscript;
+                  _interim = '';
+                  _lastFinal = '';
+                });
+                _updateTextField();
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Transcript refined for better accuracy'),
+                      backgroundColor: AppColors.success,
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+              }
+            }
+          } catch (e) {
+            debugPrint('Batch recognition error: $e');
+            // If batch recognition fails, keep the streaming transcript
+            // Don't show error to user as streaming transcript is already available
+          } finally {
+            if (mounted) {
+              setState(() {
+                _isProcessingWithGemini = false;
+              });
+            }
+          }
+        }
+        
+        // Clear the buffer after processing
+        _buffer.clear();
       } else if (_selectedWriter == 2) {
         // Writer 2: Disconnect Gemini Live
         await _geminiLiveSub?.cancel();
         _geminiLiveSub = null;
         await _geminiLive?.disconnect();
         _geminiLive = null;
+        
+        // Clear the buffer
+        _buffer.clear();
       }
     }
     _lastFinal = '';
