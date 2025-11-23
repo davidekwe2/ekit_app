@@ -14,7 +14,7 @@
 
     <!-- ===== Application Section ===== -->
     <application
-        android:label="ekit_app"
+        android:label="EkitNotes"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
