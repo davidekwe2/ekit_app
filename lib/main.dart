@@ -24,6 +24,7 @@ import 'package:ekit_app/pages/auth/login_page.dart';
 import 'package:ekit_app/pages/auth/signup_page.dart';
 import 'package:ekit_app/pages/profile_page.dart';
 import 'package:ekit_app/pages/settings_page.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -65,7 +66,8 @@ class MyApp extends StatelessWidget {
       ],
       child: Consumer2<ThemeService, LanguageService>(
         builder: (context, themeService, languageService, _) {
-          return MaterialApp(
+          return WithForegroundTask(
+            child: MaterialApp(
             debugShowCheckedModeBanner: false,
             title: 'EKit Notes',
 
@@ -149,6 +151,7 @@ class MyApp extends StatelessWidget {
                   return null;
               }
             },
+            ),
           );
         },
       ),

@@ -1,0 +1,61 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns the resource
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      // Allow authenticated users to read any user document (for rankings/leaderboards)
+      // This also allows listing/querying the users collection
+      allow read: if isAuthenticated();
+      
+      // Users can create/update their own document
+      allow create, update: if isOwner(userId);
+      
+      // Quiz stats subcollection
+      match /quiz_stats/{statsDocId} {
+        // Users can read any quiz stats (for leaderboards)
+        allow read: if isAuthenticated();
+        
+        // Users can only write their own stats
+        allow write: if isOwner(userId);
+      }
+      
+      // Quiz results subcollection
+      match /quiz_results/{resultId} {
+        // Users can read their own results
+        allow read: if isOwner(userId);
+        
+        // Users can write their own results
+        allow write: if isOwner(userId);
+      }
+      
+      // Notes subcollection
+      match /notes/{noteId} {
+        // Users can read/write their own notes
+        allow read, write: if isOwner(userId);
+      }
+      
+      // Chat history subcollection
+      match /chat_history/{chatId} {
+        // Users can read/write their own chat history
+        allow read, write: if isOwner(userId);
+      }
+    }
+    
+    // Default deny all other reads/writes
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
