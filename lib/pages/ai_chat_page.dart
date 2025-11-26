@@ -20,8 +20,16 @@ import 'homepage.dart';
 class AIChatPage extends StatefulWidget {
   final Note? importedNote;
   final ChatHistory? chatHistory;
+  final bool forceNewChat;
+  final int? initialVersion; // 1 = Version 1 (transcript), 2 = Version 2 (geminiTranscript)
 
-  const AIChatPage({super.key, this.importedNote, this.chatHistory});
+  const AIChatPage({
+    super.key,
+    this.importedNote,
+    this.chatHistory,
+    this.forceNewChat = false,
+    this.initialVersion,
+  });
 
   factory AIChatPage.fromHistory(ChatHistory history) {
     return AIChatPage(chatHistory: history, importedNote: null);
@@ -36,6 +44,7 @@ class _AIChatPageState extends State<AIChatPage> {
   final ScrollController _scrollController = ScrollController();
   late List<ChatMessage> _messages;
   Note? _currentNote;
+  int _selectedNoteVersion = 1; // 1 = Version 1 (transcript), 2 = Version 2 (geminiTranscript)
   bool _isLoading = false;
   String? _currentChatId;
   bool _isInitializing = true;
@@ -49,6 +58,11 @@ class _AIChatPageState extends State<AIChatPage> {
 
   Future<void> _initializeChat() async {
     _messages = [];
+
+    // Set initial version if provided
+    if (widget.initialVersion != null) {
+      _selectedNoteVersion = widget.initialVersion!;
+    }
 
     if (widget.chatHistory != null) {
       debugPrint(
@@ -92,21 +106,31 @@ class _AIChatPageState extends State<AIChatPage> {
       await ChatSessionService.setCurrentNoteId(widget.chatHistory!.noteId);
       debugPrint('Chat initialized with ${_messages.length} messages');
     } else {
-      final currentChat = await ChatSessionService.loadCurrentChat();
-      if (currentChat != null && currentChat.messages.isNotEmpty) {
-        _currentChatId = currentChat.id;
-        _messages = List.from(currentChat.messages);
-        if (currentChat.noteId != null) {
-          _currentNote = AppStore.notes.firstWhere(
-                (n) => n.id == currentChat.noteId,
-            orElse: () => Note(
-              id: currentChat.noteId!,
-              title: currentChat.noteTitle ?? '',
-              transcript: '',
-            ),
-          );
-        }
+      // If forceNewChat is true, skip loading existing chat and start fresh
+      if (widget.forceNewChat) {
+        debugPrint('Starting new chat (forceNewChat=true)');
+        _currentChatId = null;
+        await ChatSessionService.clearCurrentChat();
       } else {
+        final currentChat = await ChatSessionService.loadCurrentChat();
+        if (currentChat != null && currentChat.messages.isNotEmpty) {
+          _currentChatId = currentChat.id;
+          _messages = List.from(currentChat.messages);
+          if (currentChat.noteId != null) {
+            _currentNote = AppStore.notes.firstWhere(
+                  (n) => n.id == currentChat.noteId,
+              orElse: () => Note(
+                id: currentChat.noteId!,
+                title: currentChat.noteTitle ?? '',
+                transcript: '',
+              ),
+            );
+          }
+        }
+      }
+
+      // If we don't have messages yet (either forceNewChat or no existing chat), start fresh
+      if (_messages.isEmpty || widget.forceNewChat) {
         _currentChatId = null;
         // Generate welcome message in user's language
         final welcomeMessage = await _generateWelcomeMessage(_currentNote);
@@ -119,9 +143,16 @@ class _AIChatPageState extends State<AIChatPage> {
         ];
 
         if (_currentNote != null) {
+          // Use the selected version (initialVersion if provided, otherwise default to 1)
+          final noteContent = _selectedNoteVersion == 2 &&
+                  _currentNote!.geminiTranscript != null &&
+                  _currentNote!.geminiTranscript!.isNotEmpty
+              ? _currentNote!.geminiTranscript!
+              : _currentNote!.transcript;
+          
           _messages.add(
             ChatMessage(
-              text: "Note content:\n${_currentNote!.transcript}",
+              text: "Note content:\n$noteContent",
               isUser: false,
               timestamp: DateTime.now(),
               isSystem: true,
@@ -178,7 +209,14 @@ class _AIChatPageState extends State<AIChatPage> {
 
       String? noteContext;
       if (_currentNote != null) {
-        noteContext = _currentNote!.transcript;
+        // Use the selected version (Version 1 or Version 2)
+        if (_selectedNoteVersion == 2 && 
+            _currentNote!.geminiTranscript != null && 
+            _currentNote!.geminiTranscript!.isNotEmpty) {
+          noteContext = _currentNote!.geminiTranscript; // Version 2 (Gemini)
+        } else {
+          noteContext = _currentNote!.transcript; // Version 1 (Google Cloud STT)
+        }
       }
 
       // Get current language
@@ -802,11 +840,46 @@ class _AIChatPageState extends State<AIChatPage> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 onTap: () async {
-                  Navigator.pop(context);
-                  final welcomeMessage = await _generateWelcomeMessage(note);
+                  Navigator.pop(context); // Close note selection dialog
+                  
+                  // Check if note has Version 2 (Gemini transcript)
+                  final hasVersion2 = note.geminiTranscript != null && note.geminiTranscript!.isNotEmpty;
+                  
+                  // Show version selection dialog if both versions exist
+                  int selectedVersion = 1; // Default to Version 1
+                  String selectedTranscript = note.transcript;
+                  
+                  if (hasVersion2) {
+                    final versionResult = await _showVersionSelectionDialog(context, note);
+                    if (versionResult == null) return; // User cancelled
+                    
+                    selectedVersion = versionResult;
+                    selectedTranscript = selectedVersion == 1 
+                        ? note.transcript 
+                        : note.geminiTranscript!;
+                  }
+                  
+                  // Load fresh note from Firestore to ensure we have latest geminiTranscript
+                  Note? freshNote;
+                  try {
+                    freshNote = await FirestoreService.getNote(note.id);
+                  } catch (e) {
+                    debugPrint('Error loading note from Firestore: $e');
+                  }
+                  final finalNote = freshNote ?? note;
+                  
+                  // Use the selected version for the final note's transcript
+                  if (selectedVersion == 2 && finalNote.geminiTranscript != null) {
+                    selectedTranscript = finalNote.geminiTranscript!;
+                  } else {
+                    selectedTranscript = finalNote.transcript;
+                  }
+                  
+                  final welcomeMessage = await _generateWelcomeMessage(finalNote);
                   if (mounted) {
                     setState(() {
-                      _currentNote = note;
+                      _currentNote = finalNote;
+                      _selectedNoteVersion = selectedVersion; // Store selected version
                       _messages = [
                         ChatMessage(
                           text: welcomeMessage,
@@ -814,7 +887,7 @@ class _AIChatPageState extends State<AIChatPage> {
                           timestamp: DateTime.now(),
                         ),
                         ChatMessage(
-                          text: "Note content:\n${note.transcript}",
+                          text: "Note content:\n$selectedTranscript",
                           isUser: false,
                           timestamp: DateTime.now(),
                           isSystem: true,
@@ -822,6 +895,7 @@ class _AIChatPageState extends State<AIChatPage> {
                       ];
                     });
                     _scrollToBottom();
+                    _saveChatHistory();
                   }
                 },
               );
@@ -835,6 +909,114 @@ class _AIChatPageState extends State<AIChatPage> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Show version selection dialog when importing a note with both versions
+  Future<int?> _showVersionSelectionDialog(BuildContext context, Note note) async {
+    return showDialog<int>(
+      context: context,
+      builder: (dialogContext) {
+        final theme = Theme.of(context);
+        final cardColor = theme.cardColor;
+        final textColor = theme.colorScheme.onSurface;
+        
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(
+            'Select Note Version',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: textColor),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Which version of "${note.title}" would you like to import?',
+                style: GoogleFonts.poppins(color: textColor),
+              ),
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: () => Navigator.pop(dialogContext, 1),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.primary, width: 2),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Version 1: Google Cloud STT',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        note.transcript.length > 60
+                            ? '${note.transcript.substring(0, 60)}...'
+                            : note.transcript,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: textColor.withOpacity(0.7),
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: () => Navigator.pop(dialogContext, 2),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.primary, width: 2),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Version 2: Gemini',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        note.geminiTranscript != null && note.geminiTranscript!.length > 60
+                            ? '${note.geminiTranscript!.substring(0, 60)}...'
+                            : note.geminiTranscript ?? 'No transcript available',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: textColor.withOpacity(0.7),
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text('Cancel', style: GoogleFonts.poppins()),
+            ),
+          ],
+        );
+      },
     );
   }
 
