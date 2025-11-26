@@ -45,6 +45,10 @@ class NoteTile extends StatelessWidget {
     final hasAI = note.aiSummary != null || 
                   note.aiTranslation != null || 
                   note.importantPoints != null;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardColor = theme.cardColor;
+    final textColor = theme.colorScheme.onSurface;
 
     return GestureDetector(
       onTap: onTap,
@@ -52,11 +56,11 @@ class NoteTile extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cardColor,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
               blurRadius: 10,
               offset: const Offset(0, 5),
             ),
@@ -145,7 +149,7 @@ class NoteTile extends StatelessWidget {
                           style: GoogleFonts.poppins(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
+                            color: textColor,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -193,7 +197,7 @@ class NoteTile extends StatelessWidget {
                     preview,
                     style: GoogleFonts.poppins(
                       fontSize: 13,
-                      color: AppColors.textSecondary,
+                      color: textColor.withOpacity(0.7),
                       height: 1.4,
                     ),
                     maxLines: 2,
@@ -206,14 +210,14 @@ class NoteTile extends StatelessWidget {
                       Icon(
                         Icons.access_time,
                         size: 14,
-                        color: AppColors.textLight,
+                        color: textColor.withOpacity(0.5),
                       ),
                       const SizedBox(width: 4),
                       Text(
                         timeAgo,
                         style: GoogleFonts.poppins(
                           fontSize: 12,
-                          color: AppColors.textLight,
+                          color: textColor.withOpacity(0.5),
                         ),
                       ),
                       const Spacer(),
@@ -230,7 +234,7 @@ class NoteTile extends StatelessWidget {
                               '${note.highlights.length}',
                               style: GoogleFonts.poppins(
                                 fontSize: 12,
-                                color: AppColors.textLight,
+                                color: textColor.withOpacity(0.5),
                               ),
                             ),
                           ],
